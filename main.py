@@ -412,60 +412,13 @@ sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet').drop(
 sensitivities_given = np.array(sensitivities_df)
 channels = list(sensitivities_df.columns)
 
-def simulate_stimuls(sensitivities_given: np.ndarray, spectras: np.ndarray) -> np.ndarray:
-    """[summary]
-
-    Args:
-        sensitivities_given (np.ndarray):
-            Camera sensitivities  n x 3 
-        spectras (np.ndarray):
-            Spectral functions n x k
-
-    Returns:
-        np.ndarray: 
-        Resulted colors k x 3
-    """
-    assert len(spectras.shape) == len(sensitivities_given.shape) == 2
-    assert spectras.shape[0] == sensitivities_given.shape[0] 
-    stimulus_learning = np.transpose(spectras) @ sensitivities_given
-    # print(spectras.shape)
-    # print(sensitivities_given.shape)
-    assert stimulus_learning.shape == (spectras.shape[-1], stimulus_learning.shape[-1]), \
-        f'{stimulus_learning.shape} != {(spectras.shape[-1], stimulus_learning.shape[-1])}'
-    return stimulus_learning
+from sim import simulate_stimuls, estimate_sensitivities
 
 stimulus_learning = simulate_stimuls(sensitivities_given, C_T)
 
 # stimulus_learning = stimulus_learning[:10]
 
-
-def estimate_sensitivities(spectras: np.ndarray, stimulus: np.ndarray) -> np.ndarray:
-    """[summary]
-
-    Args:
-        spectras (np.ndarray): 
-            n x k
-        stimulus (np.ndarray): 
-            k x 3
-
-    Returns:
-        np.ndarray: 
-            n x 3
-    """
-    H = inv((spectras @ spectras.T).astype(float)) @ spectras
-    assert H.shape == (spectras.shape[0], stimulus.shape[0])
-    sensitivities =  H @ stimulus
-    return sensitivities
-
-def plot_sens(sens, pattern='-', show=False):
-    for i,c in enumerate('rgb'):
-        plt.plot(wavelengths, sensitivities[:, i], pattern, c=c)
-    if show: plt.show()
-    
-def plot_spectra(spectras, show=False):
-    for i in range(spectras.shape[-1]):
-        plt.plot(wavelengths, spectras[:, i], '--')
-    if show: plt.show()
+from plot import plot_sens, plot_spectra
 
 stops = list(i for i in range(1, 60, 5))
 # 36 -- norm!
@@ -478,17 +431,13 @@ for stop in stops:
 
     plot_spectra(C_T[:,:stop], True)
     
-exit()
 # print(np.concatenate((sensitivities_given, sensitivities), axis=1))
-
 R_learning = []
 for illuminant_index in range(illuminants_number):
         R_learning += [R[patch % patches_number] for patch in learning_sample 
                     if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number]
 R_learning = np.transpose(np.array(R_learning))
 write_to_excel('Sensitivities.xlsx', sensitivities, R_learning, learning_sample)
-
-################################
 
 # ####################################
 # Check accuracy usings learning and test samples: 
@@ -506,7 +455,3 @@ write_to_excel('Sensitivities.xlsx', sensitivities, R_learning, learning_sample)
 #     check_accuracy(patches_number, stimulus_predicted_test, stimulus_test)
 
 ######################################
-# reg_start = {"R": 0.05, "G": 0.05, "B": 0.05}
-# reg_stop = {"R": 5, "G": 5, "B": 5}
-# reg_step = {"R": 0.005, "G": 0.005, "B": 0.005}
-# reg_sensitivities = regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning)
