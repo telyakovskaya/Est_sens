@@ -1,5 +1,12 @@
 import numpy as np
 from numpy.linalg import inv
+from scipy import interpolate
+
+def change_wavelengths(spectras, wl_in, wl_out):
+    interp = interpolate.interp1d(wl_in, spectras)
+    return interp(wl_out)
+
+
 
 def simulate_stimuls(sensitivities_given: np.ndarray, spectras: np.ndarray) -> np.ndarray:
     """[summary]
