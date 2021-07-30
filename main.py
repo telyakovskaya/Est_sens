@@ -358,9 +358,9 @@ exceptions = set([])
 wavelengths = list(range(400, 721, 10))
 
 #########################
-
-E_df = pd.read_excel('illuminances_std.xlsx', sheet_name='Worksheet')
-R_df = pd.read_excel('babelcolor.xlsx', sheet_name='Worksheet')
+from data import E_open, R_open, sens_open
+E_df = E_open()
+R_df = R_open()
 E = np.array((E_df[E_df['wavelength'].isin(wavelengths)]).drop(columns='wavelength'))
 R = np.transpose(np.array(R_df[R_df['wavelength'].isin(wavelengths)].drop(columns='wavelength')))
 
@@ -396,7 +396,7 @@ E = np.ones((33, 1))
 C = C_matrix(learning_sample, E, R)
 C_T = np.transpose(C)
 
-sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet').drop(columns='wavelength')
+sensitivities_df = sens_open()
 sensitivities_given = np.array(sensitivities_df)
 channels = list(sensitivities_df.columns)
 

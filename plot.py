@@ -15,7 +15,13 @@ def plot_spectra(spectras, show=False):
         plt.plot(wavelengths, spectras[:, i], '--')
     if show: plt.show()
 
-def visualization(nslices, tips):
+def visualization(nslices: int, tips: list):
+    """
+    This function builds heatmap to visualize accuracy usings learning and test samples
+    Args:
+        nslices (int): number of bars in colorchecker
+        tips ([type]): list of sensitivities
+    """    
     a = np.array(tips)
     tips1 = a.reshape((nslices, -1))
     value_max = max(tips1, key=lambda item: item[1])[1]
