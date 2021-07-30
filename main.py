@@ -358,6 +358,26 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning):
 
     return reg_sensitivities
 
+def get_lambda_grid(start, stop, points_number):
+    step = (stop - start) / points_number
+    return [start + point * step for point in range(points_number)]
+
+
+def measure_stimuli():
+    P = np.zeros(shape=(patches_number * illuminants_number, 3))
+    process  = DNGProcessingDemo()
+    illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC'][:illuminants_number]
+
+    for illuminant in illumination_types:
+        illuminant_index = illumination_types.index(illuminant)  
+        img_path = join(r"C:\Users\adm\Documents\IITP\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
+        json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
+
+        img = process(img_path)       
+        color_per_region = process_markup(json_path, img)
+        P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
+                        [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
+    return P
 ##########################
 
 alphabet_st = list(string.ascii_uppercase)
