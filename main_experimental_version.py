@@ -14,6 +14,7 @@ import math
 import random
 import statistics
 import seaborn as sns
+from scipy import interpolate
 
 global channels, alphabet, colors_RGB, illuminants_number, patches_number, choosed_patches_number, wavelengths
 
@@ -175,7 +176,7 @@ def write_to_excel(file_path, sensitivities, R_learning, learning_sample):
     # cmap = plt.cm.get_cmap('viridis')
     # colors_patches = [cmap(i) for i in range(cmap.N)] 
     colors_patches = {i:'blue' for i in learning_sample}
-    print(colors_patches)
+    
     draw_chart(workbook, worksheet_1, "Patches' reflectance", patches_x_axis, patches_y_axis, \
         '=Sheet2!$A$3:$A$109', patches_values_coord, 'F26', learning_sample, colors_patches)
     
@@ -201,7 +202,7 @@ for letter1 in alphabet_st:
 
 colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
 exceptions = set([])
-wavelengths = list(range(400, 721, 10))
+wavelengths = list(range(400, 721, 80))
 
 #########################
 P = np.zeros(shape=(24 * 6, 3))
@@ -220,25 +221,33 @@ for illuminant in illumination_types:
 
 
 E_df = pd.read_excel('LampSpectra.xls', sheet_name='LampsSpectra', skiprows=2)
-E_df = E_df[E_df['Lambda grid'].isin(wavelengths)]
 R_df = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4, header=0)
-R_df = R_df[R_df['Lambda grid'].isin(wavelengths)]
-R = np.array([R_df[str(patch + 1) + 'Avg'] for patch in range(24)])
-R /= R.max(axis=0)
 
 illuminants_number = 6
 patches_number = 24        # how many patches are in colorchecker
 choosed_patches_number = patches_number                  # how many patches to use 
 valid = set(range(patches_number * illuminants_number)) - exceptions
 achromatic_single = []
-learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=0.8)
+learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
+
+R = np.zeros(shape=(len(wavelengths), patches_number))
+x = R_df['Lambda grid']
+for patch in range(patches_number):
+    y = R_df[str(patch + 1) + 'Avg']
+    R_interpolated = interpolate.interp1d(x, y)
+    R[:, patch] = R_interpolated(wavelengths)
+R = np.transpose(R)
+R /= R.max(axis=0)
 
 
-C = np.zeros(shape=(len(learning_sample), 33))
+C = np.zeros(shape=(len(learning_sample), len(wavelengths)))
 C_current_index = 0
 
+x = E_df['Lambda grid']
 for illuminant_index in range(6):
-    E = np.diag(E_df[str(1 + illuminant_index) + 'Norm'])
+    y = E_df[str(1 + illuminant_index) + 'Norm']
+    E_interpolated=interpolate.interp1d(x, y)
+    E = np.diag(E_interpolated(wavelengths))
     R_learning = [R[patch % 24] for patch in learning_sample if illuminant_index * 24 <= patch < illuminant_index * 24 + 24]
     C[C_current_index:C_current_index + len(R_learning)] = np.transpose(np.matmul(E, np.transpose(R_learning)))
     C_current_index += len(R_learning)
