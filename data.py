@@ -16,3 +16,8 @@ import statistics
 import seaborn as sns
 
 global channels, alphabet, colors_RGB, illuminants_number, patches_number, choosed_patches_number, wavelengths
+
+wavelengths = list(range(400, 721, 10))
+
+E_df = pd.read_excel('illuminances_std.xlsx', sheet_name='Worksheet')
+R_df = pd.read_excel('babelcolor.xlsx', sheet_name='Worksheet')

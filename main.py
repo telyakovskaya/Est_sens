@@ -14,6 +14,11 @@ import math
 import random
 import statistics
 import seaborn as sns
+from sim import simulate_stimuls, estimate_sensitivities
+from plot import plot_sens, plot_spectra
+
+import os 
+os.system('python data.py')
 
 global channels, alphabet, colors_RGB, illuminants_number, patches_number, choosed_patches_number, wavelengths
 
@@ -182,17 +187,6 @@ def write_to_excel(file_path, sensitivities, R_learning, learning_sample):
     workbook.close()
 
 
-def visualization(nslices, tips):
-    #tips_df = sns.load_dataset('tips')
-    #tips_df.head()
-    a = np.array(tips)
-    tips1 = a.reshape((nslices, -1))
-    value_max = max(tips1, key=lambda item: item[1])[1]
-    value_min = min(tips1, key=lambda item: item[1])[1]
-    sns.set_theme()
-    sns.heatmap(tips1, annot = True, vmin=value_min, vmax=value_max, center= (value_min+value_max)//2, fmt='.3g', cmap= 'coolwarm')
-
-
 def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning):
     def menger(p1, p2, p3):
         residual1, solution1 = p1
@@ -209,10 +203,8 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning):
     def l_curve_P(reg_parameter, channel):
         C_T = np.transpose(C)
         sensitivities[:,channel] = inv((C_T @ C).astype(float) + np.identity(107) * reg_parameter) @ C_T @ P_learning[:,channel]
-    #     solution = math.log10((np.linalg.norm(sensitivities[:,channel], 2)))
         solution = ((np.linalg.norm(sensitivities[:,channel], 2))) ** 2
         residual_vector = C @ sensitivities[:,channel] - P_learning[:,channel]
-    #     residual = math.log10((np.linalg.norm(residual_vector, 2)))
         residual = ((np.linalg.norm(residual_vector, 2))) ** 2
         return residual, solution
 
@@ -303,7 +295,7 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning):
         current_letter = alphabet[start_letter_index + channel_index]
         chart.add_series({
             'name': channel,
-            'line':   {'width': 1.25, 'color': colors[channel_index]},
+            'line':   {'width': 1.25, 'color': colors_RGB[channel_index]},
             'categories': '=Sheet1!$A$3:$A$109',
             'values': '=Sheet1!$' + current_letter + '$3:$' + current_letter + '$109',
         })
@@ -342,7 +334,7 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning):
         chart = workbook.add_chart({'type': 'scatter', 'subtype': 'smooth'})
         
         chart.add_series({
-            'line':   {'width': 1.25, 'color': colors[channel]},
+            'line':   {'width': 1.25, 'color': colors_RGB[channel]},
             'categories': '=Sheet1!$' + residual_letter + '$3:$' + residual_letter + '$'+ str(end_row),
             'values': '=Sheet1!$' + solution_letter + '$3:$' + solution_letter + '$' + str(end_row),
         })
@@ -358,6 +350,7 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning):
 
     return reg_sensitivities
 
+
 ##########################
 
 alphabet_st = list(string.ascii_uppercase)
@@ -368,11 +361,11 @@ wavelengths = list(range(400, 721, 10))
 
 #########################
 
-E_df = pd.read_excel('illuminances_std.xlsx', sheet_name='Worksheet')
-R_df = pd.read_excel('babelcolor.xlsx', sheet_name='Worksheet')
+#E_df = pd.read_excel('illuminances_std.xlsx', sheet_name='Worksheet')
+#R_df = pd.read_excel('babelcolor.xlsx', sheet_name='Worksheet')
 E = np.array((E_df[E_df['wavelength'].isin(wavelengths)]).drop(columns='wavelength'))
 R = np.transpose(np.array(R_df[R_df['wavelength'].isin(wavelengths)].drop(columns='wavelength')))
-
+exit()
 # E_df = pd.read_excel('LampSpectra.xls', sheet_name='LampsSpectra', skiprows=2)
 # E_df = E_df[E_df['Lambda grid'].isin(wavelengths)]
 # R_df = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4, header=0)
@@ -381,14 +374,11 @@ R = np.transpose(np.array(R_df[R_df['wavelength'].isin(wavelengths)].drop(column
 # R /= R.max(axis=0)
 
 illuminants_number = len(E_df.columns) - 1
-# illuminants_number = 6
 patches_number = len(R_df.columns) - 1        # how many patches are in colorchecker
-# patches_number = 24
 choosed_patches_number = patches_number                  # how many patches to use 
 valid = set(range(patches_number * illuminants_number)) - exceptions
 achromatic_single = list(range(14)) + [patch for patch in range(14, 126) if patch % 14 == 0 or patch % 14 == 13] + list(range(126, 140)) + \
         list(range(60, 66)) + list(range(74, 80))
-# achromatic_single = []
 learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
 
 
@@ -412,13 +402,9 @@ sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet').drop(
 sensitivities_given = np.array(sensitivities_df)
 channels = list(sensitivities_df.columns)
 
-from sim import simulate_stimuls, estimate_sensitivities
-
 stimulus_learning = simulate_stimuls(sensitivities_given, C_T)
 
 # stimulus_learning = stimulus_learning[:10]
-
-from plot import plot_sens, plot_spectra
 
 stops = list(i for i in range(1, 60, 5))
 # 36 -- norm!
