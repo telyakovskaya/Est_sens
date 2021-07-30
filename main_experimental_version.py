@@ -14,6 +14,7 @@ import math
 import random
 import statistics
 import seaborn as sns
+from scipy import interpolate
 
 global channels, alphabet, colors_RGB, illuminants_number, patches_number, choosed_patches_number, wavelengths
 
@@ -224,7 +225,7 @@ E_df = E_df[E_df['Lambda grid'].isin(wavelengths)]
 R_df = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4, header=0)
 R_df = R_df[R_df['Lambda grid'].isin(wavelengths)]
 R = np.array([R_df[str(patch + 1) + 'Avg'] for patch in range(24)])
-R /= R.max(axis=0)
+# R /= R.max(axis=0)
 
 illuminants_number = 6
 patches_number = 24        # how many patches are in colorchecker
@@ -238,7 +239,7 @@ C = np.zeros(shape=(len(learning_sample), 33))
 C_current_index = 0
 
 for illuminant_index in range(6):
-    E = np.diag(E_df[str(1 + illuminant_index) + 'Norm'])
+    E = np.diag(E_df[str(1 + illuminant_index) + 'Avg'])
     R_learning = [R[patch % 24] for patch in learning_sample if illuminant_index * 24 <= patch < illuminant_index * 24 + 24]
     C[C_current_index:C_current_index + len(R_learning)] = np.transpose(np.matmul(E, np.transpose(R_learning)))
     C_current_index += len(R_learning)
