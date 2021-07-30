@@ -17,8 +17,6 @@ import seaborn as sns
 from sim import simulate_stimuls, estimate_sensitivities
 from plot import plot_sens, plot_spectra
 
-import os 
-os.system('python data.py')
 
 global channels, alphabet, colors_RGB, illuminants_number, patches_number, choosed_patches_number, wavelengths
 
@@ -361,11 +359,11 @@ wavelengths = list(range(400, 721, 10))
 
 #########################
 
-#E_df = pd.read_excel('illuminances_std.xlsx', sheet_name='Worksheet')
-#R_df = pd.read_excel('babelcolor.xlsx', sheet_name='Worksheet')
+E_df = pd.read_excel('illuminances_std.xlsx', sheet_name='Worksheet')
+R_df = pd.read_excel('babelcolor.xlsx', sheet_name='Worksheet')
 E = np.array((E_df[E_df['wavelength'].isin(wavelengths)]).drop(columns='wavelength'))
 R = np.transpose(np.array(R_df[R_df['wavelength'].isin(wavelengths)].drop(columns='wavelength')))
-exit()
+
 # E_df = pd.read_excel('LampSpectra.xls', sheet_name='LampsSpectra', skiprows=2)
 # E_df = E_df[E_df['Lambda grid'].isin(wavelengths)]
 # R_df = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4, header=0)
