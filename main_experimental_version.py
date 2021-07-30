@@ -22,7 +22,7 @@ def do_nothing(img, meta): return img
  
 
 class DNGProcessingDemo():
-    def __init__(self, tone_mapping=1, denoising_flg=1):
+    def __init__(self, tone_mapping=False, denoising_flg=False):
         self.pipeline_demo = RawProcessingPipelineDemo(
             denoise_flg=denoising_flg, tone_mapping=tone_mapping)
         self.pipeline_demo.tone_mapping = do_nothing
@@ -36,6 +36,7 @@ class DNGProcessingDemo():
  
         pipeline_exec = PipelineExecutor(
                 raw_image, metadata, self.pipeline_demo, last_stage='demosaic')
+                # raw_image, metadata, self.pipeline_demo, last_stage='white_balance')
         
         return pipeline_exec()
 
@@ -47,19 +48,23 @@ def calc_mean_color(img, points):
         points(list): list of regions coords
     '''
     points = np.array(points)
-    mask = np.zeros([img.shape[0], img.shape[1]], dtype=int)
-    y, x = draw.polygon(points[:,1], points[:,0], shape=img.shape)    # Generate coordinates of pixels within polygon
-    mask[y, x] = 1
-    pixels = img[mask == 1]
-    region_color = pixels.mean(axis=0).astype(img.dtype)
+    y, x = draw.polygon(points[:,1], points[:,0], shape=img.shape)
 
-    return region_color.tolist()
+    # img_tmp = np.copy(img)
+    # img_tmp /= np.quantile(img_tmp, 0.99)
+    # img_tmp[y, x] = [1, 0, 0]
+    # plt.imshow(img_tmp)
+    # plt.show()
+    region_color = np.mean(img[y, x], axis=0)
+
+    img[y, x] = region_color
+    return region_color
 
 
 def process_markup(json_path, img):
     with open(json_path, 'r') as file:
         markup_json = json.load(file)
-
+    print(markup_json['size'])
     color_per_region = {}
     for object in markup_json['objects']:
         color_per_region[object['tags'][0]] = calc_mean_color(img, object['data'])
@@ -211,16 +216,40 @@ def measure_stimuli():
         img_path = join(r"C:\Users\adm\Documents\IITP\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
         json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
 
-        img = process(img_path)       
+        img = process(img_path).astype(np.float32)
+        img_max = np.quantile(img, 0.99)
+        
         color_per_region = process_markup(json_path, img)
+        cc_keys = [str(i) for i in range(1, 25)]
+        carray = np.asarray([color_per_region[key] for key in cc_keys])
+        # carray = carray.reshape((6, 4, 3))
+        
+        # plt.imshow(img / img_max)
+        # plt.show()
+        # plt.imshow(carray / img_max)
+        # plt.show()
+
         P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
                         [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
     return P
 
 
+def draw_colorchecker(stimuli):
+    carray = np.asarray([stimuli[i] for i in range(patches_number)])
+    carray = carray.reshape((6, 4, 3))
+    plt.imshow(carray)
+    plt.show()
+
+
 def plot_spectra(spectras, show=False):
     for i in range(spectras.shape[-1]):
         plt.plot(wavelengths, spectras[:, i], '--')
+    if show: plt.show()
+
+
+def plot_sens(sens, pattern='-', show=False):
+    for i,c in enumerate('rgb'):
+        plt.plot(wavelengths, sensitivities[:, i], pattern, c=c)
     if show: plt.show()
 
 ##########################
@@ -238,7 +267,7 @@ wavelengths = get_lambda_grid(400, 721, 7)
 E_df = pd.read_excel('LampSpectra.xls', sheet_name='LampsSpectra', skiprows=2)
 R_df = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4, header=0)
 
-illuminants_number = 6
+illuminants_number = 1
 patches_number = 24        # in colorchecker
 choosed_patches_number = patches_number                  # how many patches to use 
 valid = set(range(patches_number * illuminants_number)) - exceptions
@@ -252,9 +281,19 @@ P = measure_stimuli()
 P_learning = np.array([P[patch] for patch in learning_sample])
 sensitivities = inv((C_T @ C).astype(float)) @ C_T @ P_learning
 
-sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet').drop(columns='wavelength')
-sensitivities_given = np.array(sensitivities_df)
-channels = list(sensitivities_df.columns)
+# plot_sens(sensitivities, show=True)
+
+sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet')
+channels = list((sensitivities_df.drop(columns='wavelength')).columns)
+
+sensitivities_given = np.zeros(shape=(len(wavelengths), 3))
+x = sensitivities_df['wavelength']
+for channel in channels:
+    y = sensitivities_df[channel]
+    sensitivities_interpolated = interpolate.interp1d(x, y)
+    sensitivities_given[:, channels.index(channel)] = sensitivities_interpolated(wavelengths)
+draw_colorchecker(C @ sensitivities_given)
+
 
 R_learning = []
 for illuminant_index in range(illuminants_number):
@@ -262,7 +301,6 @@ for illuminant_index in range(illuminants_number):
                     if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number]
 R_learning = np.transpose(np.array(R_learning))
 write_to_excel('Sensitivities.xlsx', sensitivities, R_learning, learning_sample)
-exit()
 
 def simulate_stimuls(sensitivities_given: np.ndarray, spectras: np.ndarray) -> np.ndarray:
     """[summary]
@@ -280,8 +318,6 @@ def simulate_stimuls(sensitivities_given: np.ndarray, spectras: np.ndarray) -> n
     assert len(spectras.shape) == len(sensitivities_given.shape) == 2
     assert spectras.shape[0] == sensitivities_given.shape[0] 
     stimulus_learning = np.transpose(spectras) @ sensitivities_given
-    # print(spectras.shape)
-    # print(sensitivities_given.shape)
     assert stimulus_learning.shape == (spectras.shape[-1], stimulus_learning.shape[-1]), \
         f'{stimulus_learning.shape} != {(spectras.shape[-1], stimulus_learning.shape[-1])}'
     return stimulus_learning
@@ -306,13 +342,5 @@ def estimate_sensitivities(spectras: np.ndarray, stimulus: np.ndarray) -> np.nda
     sensitivities =  H @ stimulus
     return sensitivities
 
-def plot_sens(sens, pattern='-', show=False):
-    for i,c in enumerate('rgb'):
-        plt.plot(wavelengths, sensitivities[:, i], pattern, c=c)
-    if show: plt.show()
     
-def plot_spectra(spectras, show=False):
-    for i in range(spectras.shape[-1]):
-        plt.plot(wavelengths, spectras[:, i], '--')
-    if show: plt.show()
 

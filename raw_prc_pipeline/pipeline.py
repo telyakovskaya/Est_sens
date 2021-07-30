@@ -181,6 +181,7 @@ class PipelineExecutor:
     def __next__(self):
         if self.next_stage_indx < len(self.stages):
             stage_func = self.stages[self.next_stage_indx]
+            # print(self.stages_names[self.next_stage_indx])
             self.current_image = stage_func(self.current_image, self.img_meta)
             self.next_stage_indx += 1
             return self.current_image
