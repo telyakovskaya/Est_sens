@@ -81,20 +81,6 @@ def choose_learning_sample(valid, achromatic_single, ratio=0.8):
     return learning_sample, patches
 
 
-def C_matrix(sample, E, R):
-    C = np.zeros(shape=(len(sample), len(E)))
-    C_current_index = 0
-    print(E.shape)
-    for illuminant_index in range(E.shape[-1]):
-        print(illuminant_index)
-        e_diag = np.diag(E[:,illuminant_index])
-        R_current = np.array([R[patch % patches_number] for patch in sample 
-                    if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number])
-        C[C_current_index:C_current_index + len(R_current)] = np.transpose(np.matmul(e_diag, np.transpose(R_current)))
-        C_current_index += len(R_current)
-    return C
-
-
 def check_accuracy(patches_number, stimulus_predicted, stimulus_genuine):
     angles = []
     norms = []
@@ -183,15 +169,59 @@ def write_to_excel(file_path, sensitivities, R_learning, learning_sample):
     workbook.close()
 
 
-def visualization(nslices, tips):
-    #tips_df = sns.load_dataset('tips')
-    #tips_df.head()
-    a = np.array(tips)
-    tips1 = a.reshape((nslices, -1))
-    value_max = max(tips1, key=lambda item: item[1])[1]
-    value_min = min(tips1, key=lambda item: item[1])[1]
-    sns.set_theme()
-    sns.heatmap(tips1, annot = True, vmin=value_min, vmax=value_max, center= (value_min+value_max)//2, fmt='.3g', cmap= 'coolwarm')
+def spectras_matrix(E_df, R):
+    C = np.zeros(shape=(len(learning_sample), len(wavelengths)))
+    C_current_index = 0
+
+    x = E_df['Lambda grid']
+    for illuminant_index in range(illuminants_number):
+        y = E_df[str(1 + illuminant_index) + 'Norm']
+        E_interpolated=interpolate.interp1d(x, y)
+        E = np.diag(E_interpolated(wavelengths))
+        R_learning = [R[patch % 24] for patch in learning_sample if illuminant_index * 24 <= patch < illuminant_index * 24 + 24]
+        C[C_current_index:C_current_index + len(R_learning)] = np.transpose(E @ np.transpose(R_learning))
+        C_current_index += len(R_learning)
+    
+    return C
+
+
+def reflectances_matrix(R_df):
+    R = np.zeros(shape=(patches_number, len(wavelengths)))
+    x = R_df['Lambda grid']
+    for patch in range(patches_number):
+        y = R_df[str(patch + 1) + 'Avg']
+        R_interpolated = interpolate.interp1d(x, y)
+        R[patch] = R_interpolated(wavelengths)
+    R /= R.max(axis=0)
+    return R
+
+
+def get_lambda_grid(start, stop, points_number):
+    step = (stop - start) / points_number
+    return [start + point * step for point in range(points_number)]
+
+
+def measure_stimuli():
+    P = np.zeros(shape=(patches_number * illuminants_number, 3))
+    process  = DNGProcessingDemo()
+    illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC'][:illuminants_number]
+
+    for illuminant in illumination_types:
+        illuminant_index = illumination_types.index(illuminant)  
+        img_path = join(r"C:\Users\adm\Documents\IITP\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
+        json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
+
+        img = process(img_path)       
+        color_per_region = process_markup(json_path, img)
+        P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
+                        [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
+    return P
+
+
+def plot_spectra(spectras, show=False):
+    for i in range(spectras.shape[-1]):
+        plt.plot(wavelengths, spectras[:, i], '--')
+    if show: plt.show()
 
 ##########################
 
@@ -201,71 +231,26 @@ for letter1 in alphabet_st:
     alphabet += [letter1 + letter2 for letter2 in alphabet_st]
 
 colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
-exceptions = set([])
-wavelengths = list(range(400, 721, 80))
+exceptions = set([])           # patches bringing in large error
+wavelengths = get_lambda_grid(400, 721, 7)
 
 #########################
-P = np.zeros(shape=(24 * 6, 3))
-process  = DNGProcessingDemo()
-illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC']
-
-for illuminant in illumination_types:
-    illuminant_index = illumination_types.index(illuminant)  
-    img_path = join(r"C:\Users\adm\Documents\IITP\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
-    json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
-
-    img = process(img_path)       
-    color_per_region = process_markup(json_path, img)
-    P[24 * illuminant_index:24 * illuminant_index + 24] = \
-                      [color_per_region[str(patch_index + 1)] for patch_index in range(24)]
-
-
 E_df = pd.read_excel('LampSpectra.xls', sheet_name='LampsSpectra', skiprows=2)
 R_df = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4, header=0)
 
 illuminants_number = 6
-patches_number = 24        # how many patches are in colorchecker
+patches_number = 24        # in colorchecker
 choosed_patches_number = patches_number                  # how many patches to use 
 valid = set(range(patches_number * illuminants_number)) - exceptions
 achromatic_single = []
 learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
 
-R = np.zeros(shape=(len(wavelengths), patches_number))
-x = R_df['Lambda grid']
-for patch in range(patches_number):
-    y = R_df[str(patch + 1) + 'Avg']
-    R_interpolated = interpolate.interp1d(x, y)
-    R[:, patch] = R_interpolated(wavelengths)
-R = np.transpose(R)
-R /= R.max(axis=0)
-
-
-C = np.zeros(shape=(len(learning_sample), len(wavelengths)))
-C_current_index = 0
-
-x = E_df['Lambda grid']
-for illuminant_index in range(6):
-    y = E_df[str(1 + illuminant_index) + 'Norm']
-    E_interpolated=interpolate.interp1d(x, y)
-    E = np.diag(E_interpolated(wavelengths))
-    R_learning = [R[patch % 24] for patch in learning_sample if illuminant_index * 24 <= patch < illuminant_index * 24 + 24]
-    C[C_current_index:C_current_index + len(R_learning)] = np.transpose(np.matmul(E, np.transpose(R_learning)))
-    C_current_index += len(R_learning)
-
+R = reflectances_matrix(R_df)
+C = spectras_matrix(E_df, R)
 C_T = np.transpose(C)
+P = measure_stimuli()
 P_learning = np.array([P[patch] for patch in learning_sample])
 sensitivities = inv((C_T @ C).astype(float)) @ C_T @ P_learning
-
-
-# C = np.zeros(shape=(len(learning_sample), len(E)))
-# C_current_index = 0
-# for illuminant_index in range(6):
-#     E = np.diag(E_df[str(1 + illuminant_index) + 'Norm'])
-#     R_learning = [R[patch % 24] for patch in learning_sample if illuminant_index * 24 <= patch < illuminant_index * 24 + 24]
-#     C[C_current_index:C_current_index + len(R_learning)] = np.transpose(np.matmul(E, np.transpose(R_learning)))
-#     C_current_index += len(R_learning)
-
-# C_T = np.transpose(C)
 
 sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet').drop(columns='wavelength')
 sensitivities_given = np.array(sensitivities_df)
@@ -330,27 +315,4 @@ def plot_spectra(spectras, show=False):
     for i in range(spectras.shape[-1]):
         plt.plot(wavelengths, spectras[:, i], '--')
     if show: plt.show()
-
-stops = list(i for i in range(1, 60, 5))
-# 36 -- norm!
-for stop in stops:
-    print(stop)
-    sensitivities = estimate_sensitivities(C_T[:, :stop], stimulus_learning[:stop])
-    plot_sens(sensitivities, '--')
-    plot_sens(sensitivities_given, '-')
-    plt.show()
-
-    plot_spectra(C_T[:,:stop], True)
-    
-
-# print(np.concatenate((sensitivities_given, sensitivities), axis=1))
-
-R_learning = []
-for illuminant_index in range(illuminants_number):
-        R_learning += [R[patch % patches_number] for patch in learning_sample 
-                    if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number]
-R_learning = np.transpose(np.array(R_learning))
-write_to_excel('Sensitivities.xlsx', sensitivities, R_learning, learning_sample)
-
-################################
 
