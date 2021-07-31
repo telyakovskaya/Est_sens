@@ -130,7 +130,13 @@ def draw_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, val
     worksheet.insert_chart(chart_coord, chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
 
 
-def write_to_excel(file_path, sensitivities, R_learning, learning_sample):
+def write_to_excel(file_path, sensitivities, learning_sample):
+    R_learning = []
+    for illuminant_index in range(illuminants_number):
+            R_learning += [R[patch % patches_number] for patch in learning_sample 
+                        if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number]
+    R_learning = np.transpose(np.array(R_learning))
+
     writer = pd.ExcelWriter(file_path, engine='xlsxwriter')
     workbook = writer.book
     pd.DataFrame(sensitivities).to_excel(writer, sheet_name='Sheet1',
@@ -263,7 +269,7 @@ def plot_spectra(spectras, show=False):
 
 def plot_sens(sens, pattern='-', show=False):
     for i,c in enumerate('rgb'):
-        plt.plot(wavelengths, sensitivities[:, i], pattern, c=c)
+        plt.plot(wavelengths, sens[:, i], pattern, c=c)
     if show: plt.show()
 
 
@@ -271,27 +277,39 @@ def get_sensitivities_gt(sensitivities_df):
     sensitivities_given = np.zeros(shape=(len(wavelengths), 3))
     x = sensitivities_df['wavelength']
     for i, channel in enumerate(['red', 'green', 'blue']):
-        print(channel)
         y = sensitivities_df[channel]
         sensitivities_interpolated = interpolate.interp1d(x, y)
         sensitivities_given[:, i] = sensitivities_interpolated(wavelengths)
     return sensitivities_given
 
 
-def plot_pictures(R):
-    # C = spectras_matrix(E_df, R)
-    C = spectras_matrix(E_df, R_babelcolor)
-    C_T = np.transpose(C)
-    # P = measure_stimuli()
-    P = spectras_matrix(E_df, R_babelcolor) @ sensitivities_given
+def draw_compared_colorcheckers(C, sensitivities, E_df, R, R_babelcolor):
+    draw_colorchecker(C @ sensitivities)
+    a_carray = draw_colorchecker(spectras_matrix(E_df, R) @ sensitivities_given)
+    b_carray = draw_colorchecker(spectras_matrix(E_df, R_babelcolor) @ sensitivities_given)
+    carray = draw_colorchecker(P)
+    tmp  = np.hstack([carray, np.zeros((6, 1, 3)), b_carray, np.zeros((6, 1, 3)), a_carray])
+    plt.imshow(tmp / tmp.max())
+    plt.show()  
 
+
+def plot_pictures(C, learning_sample, simulated=False):
+    if simulated:
+        P = spectras_Alexander @ sensitivities_gt
+    else:
+        P = measure_stimuli()
     P_learning = np.array([P[patch] for patch in learning_sample])
-    sensitivities = inv((C_T @ C).astype(float)) @ C_T @ P_learning
+    sensitivities = inv((C.T @ C).astype(float)) @ C.T @ P_learning
 
     plot_sens(sensitivities, show=True)
-    plot_spectra(C_T, show=True)
+    plot_spectra(C.T, show=True)
+    
 ##########################
 
+wavelengths = get_lambda_grid(400, 721, 25)
+illuminants_number = 1
+patches_number = 24                                      # in colorchecker
+choosed_patches_number = patches_number                  # how many patches to use 
 alphabet_st = list(string.ascii_uppercase)
 alphabet = list(string.ascii_uppercase)
 for letter1 in alphabet_st:
@@ -299,53 +317,26 @@ for letter1 in alphabet_st:
 
 colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
 exceptions = set([])           # patches bringing in large error
-wavelengths = get_lambda_grid(400, 721, 15)
-
+achromatic_single = []
+valid = set(range(patches_number * illuminants_number)) - exceptions
 #########################
 E_df = pd.read_excel('LampSpectra.xls', sheet_name='LampsSpectra', skiprows=2)
 R_df = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4, header=0)
+R_internet = R_babelcolor_matrix(pd.read_excel('24_spectras.xlsx'))
 sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet')
 channels = list((sensitivities_df.drop(columns='wavelength')).columns)
-sensitivities_given = get_sensitivities_gt(sensitivities_df)
+sensitivities_gt = get_sensitivities_gt(sensitivities_df)
 
-illuminants_number = 1
-patches_number = 24        # in colorchecker
-choosed_patches_number = patches_number                  # how many patches to use 
-valid = set(range(patches_number * illuminants_number)) - exceptions
-achromatic_single = []
 learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
 
-R_babelcolor_df = pd.read_excel('24_spectras.xlsx')
-R_babelcolor = R_babelcolor_matrix(R_babelcolor_df)
 R = reflectances_matrix(R_df)
+spectras_Alexander = spectras_matrix(E_df, R)
+spectras_internet = spectras_matrix(E_df, R_internet)
+P_measured = measure_stimuli()
+P_gt = spectras_Alexander @ sensitivities_gt
 
+plot_pictures(spectras_internet, learning_sample, simulated=False)
 
-# C = spectras_matrix(E_df, R)
-C = spectras_matrix(E_df, R_babelcolor)
-C_T = np.transpose(C)
-# P = measure_stimuli()
-P = spectras_matrix(E_df, R_babelcolor) @ sensitivities_given
-
-P_learning = np.array([P[patch] for patch in learning_sample])
-sensitivities = inv((C_T @ C).astype(float)) @ C_T @ P_learning
-
-plot_sens(sensitivities, show=True)
-plot_spectra(C_T, show=True)
-
-
-
-# draw_colorchecker(C @ sensitivities)
-a_carray = draw_colorchecker(spectras_matrix(E_df, R) @ sensitivities_given)
-b_carray = draw_colorchecker(spectras_matrix(E_df, R_babelcolor) @ sensitivities_given)
-carray = draw_colorchecker(P)
-tmp  = np.hstack([carray, np.zeros((6, 1, 3)), b_carray, np.zeros((6, 1, 3)), a_carray])
-# plt.imshow(tmp / tmp.max())
-# plt.show()
-
-
-R_learning = []
-for illuminant_index in range(illuminants_number):
-        R_learning += [R[patch % patches_number] for patch in learning_sample 
-                    if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number]
-R_learning = np.transpose(np.array(R_learning))
-write_to_excel('Sensitivities.xlsx', sensitivities, R_learning, learning_sample)
+P_learning = np.array([P_measured[patch] for patch in learning_sample])
+sensitivities = inv((spectras_Alexander.T @ spectras_Alexander).astype(float)) @ spectras_Alexander.T @ P_learning
+write_to_excel('Sensitivities.xlsx', sensitivities, learning_sample)
