@@ -207,7 +207,7 @@ def reflectances_matrix(R_df):
     return R
 
 
-def R_babelcolor_matrix(R_df):
+def R_internet_matrix(R_df):
     R = np.zeros(shape=(patches_number, len(wavelengths)))
     x = R_df['wavelengths']
     for patch in range(patches_number):
@@ -234,18 +234,18 @@ def measure_stimuli():
         json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
 
         img = process(img_path).astype(np.float32)
-        img_max = np.quantile(img, 0.99)
+        # img_max = np.quantile(img, 0.99)
         
         color_per_region = process_markup(json_path, img)
-        cc_keys = [str(i) for i in range(1, 25)]
-        return np.asarray([color_per_region[key] for key in cc_keys])
-        carray = carray.reshape((6, 4, 3))
+        # cc_keys = [str(i) for i in range(1, 25)]
+        # return np.asarray([color_per_region[key] for key in cc_keys])
+        # carray = carray.reshape((6, 4, 3))
         
         # plt.imshow(img / img_max)
         # plt.show()
         # return carray / img_max
-        plt.imshow(carray / img_max)
-        plt.show()
+        # plt.imshow(carray / img_max)
+        # plt.show()
 
         P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
                         [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
@@ -267,9 +267,10 @@ def plot_spectra(spectras, show=False):
     if show: plt.show()
 
 
-def plot_sens(sens, pattern='-', show=False):
+def plot_sens(sens, sensitivities_gt, pattern='-', show=False):
     for i,c in enumerate('rgb'):
         plt.plot(wavelengths, sens[:, i], pattern, c=c)
+        plt.plot(wavelengths, sensitivities_gt[:,i], '--', c=c)
     if show: plt.show()
 
 
@@ -295,18 +296,29 @@ def draw_compared_colorcheckers(C, sensitivities, E_df, R, R_babelcolor):
 
 def plot_pictures(C, learning_sample, sensitivities_gt, simulated=False):
     if simulated:
-        P = C @ sensitivities_gt
+        P_learning = C @ sensitivities_gt
     else:
         P = measure_stimuli()
-    P_learning = np.array([P[patch] for patch in learning_sample])
+        P_learning = np.array([P[patch] for patch in learning_sample])
+    
     sensitivities = inv((C.T @ C).astype(float)) @ C.T @ P_learning
 
-    plot_sens(sensitivities, show=True)
-    plot_spectra(C.T, show=True)
+    plot_sens(sensitivities, sensitivities_gt, show=True)
+    # plot_spectra(C.T, show=True)
+
+
+def check_stimuls_accuracy(P):
+    P /= P.max(axis=0)
+    for channel in range(3): 
+        mean_stimul = np.mean(P[:, channel])
+        variance_stimuls = statistics.variance(P[:, channel])
+        print(channel, mean_stimul, variance_stimuls)
+        sns.histplot(P[:, channel], kde=True).get_figure()
+        plt.show()
     
 ##########################
 
-wavelengths = get_lambda_grid(400, 721, 25)
+wavelengths = get_lambda_grid(400, 721, 13)
 illuminants_number = 1
 patches_number = 24                                      # in colorchecker
 choosed_patches_number = patches_number                  # how many patches to use 
@@ -319,15 +331,18 @@ colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
 exceptions = set([])           # patches bringing in large error
 achromatic_single = []
 valid = set(range(patches_number * illuminants_number)) - exceptions
+
 #########################
+
 E_df = pd.read_excel('LampSpectra.xls', sheet_name='LampsSpectra', skiprows=2)
 R_df = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4, header=0)
-R_internet = R_babelcolor_matrix(pd.read_excel('24_spectras.xlsx'))
+R_internet = R_internet_matrix(pd.read_excel('24_spectras.xlsx'))
 sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet')
 channels = list((sensitivities_df.drop(columns='wavelength')).columns)
 sensitivities_gt = get_sensitivities_gt(sensitivities_df)
 
 learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
+# print(len(learning_sample))
 
 R = reflectances_matrix(R_df)
 spectras_Alexander = spectras_matrix(E_df, R)
@@ -335,8 +350,13 @@ spectras_internet = spectras_matrix(E_df, R_internet)
 P_measured = measure_stimuli()
 P_gt = spectras_Alexander @ sensitivities_gt
 
-plot_pictures(spectras_Alexander, learning_sample, sensitivities_gt, simulated=True)
+check_stimuls_accuracy(P_measured)
+
+# plot_pictures(spectras_Alexander, learning_sample, sensitivities_gt, simulated=True)
 
 P_learning = np.array([P_measured[patch] for patch in learning_sample])
 sensitivities = inv((spectras_Alexander.T @ spectras_Alexander).astype(float)) @ spectras_Alexander.T @ P_learning
-write_to_excel('Sensitivities.xlsx', sensitivities, learning_sample)
+# write_to_excel('Sensitivities.xlsx', sensitivities, learning_sample)
+
+
+# The number of points in lambda grid shouldn't exceed the length of the learning sample.

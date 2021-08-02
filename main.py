@@ -301,7 +301,6 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning):
 
     return reg_sensitivities
 
-<<<<<<< HEAD
 def get_lambda_grid(start, stop, points_number):
     step = (stop - start) / points_number
     return [start + point * step for point in range(points_number)]
@@ -323,8 +322,6 @@ def measure_stimuli():
                         [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
     return P
 ##########################
-=======
->>>>>>> 167d4f595e63ad36ce102543d58b18a5ef8ca043
 
 
 if __name__=='__main__':    
