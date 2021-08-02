@@ -101,6 +101,20 @@ def check_accuracy(patches_number, stimulus_predicted, stimulus_genuine):
 
 
 def draw_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, values_coord, chart_coord, data_series, colors):
+    """[summary]
+
+    Args:
+        workbook ([type]): [description]
+        worksheet ([type]): [description]
+        title ([type]): [description]
+        x_axis ([type]): [description]
+        y_axis ([type]): [description]
+        categories_coord ([type]): [description]
+        values_coord ([type]): [description]
+        chart_coord ([type]): [description]
+        data_series ([type]): [description]
+        colors ([type]): [description]
+    """    
     chart = workbook.add_chart({'type': 'scatter', 'subtype': 'smooth'})
     for plot in data_series:
         chart.add_series({
@@ -119,6 +133,15 @@ def draw_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, val
 
 
 def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channels):
+    """[summary]
+
+    Args:
+        file_path ([type]): [description]
+        sensitivities ([type]): [description]
+        R_learning ([type]): [description]
+        learning_sample ([type]): [description]
+        channels ([type]): [description]
+    """    
     alphabet_st = list(string.ascii_uppercase)
     alphabet = alphabet_st + ['A' + letter for letter in alphabet_st] + ['B' + letter for letter in alphabet_st]
     colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
@@ -166,8 +189,21 @@ def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channe
     
     workbook.close()
 
-
 def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning, channels):
+    """[summary]
+
+    Args:
+        reg_start ([type]): [description]
+        reg_stop ([type]): [description]
+        reg_step ([type]): [description]
+        sensitivities ([type]): [description]
+        C ([type]): [description]
+        P_learning ([type]): [description]
+        channels ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """    
     alphabet_st = list(string.ascii_uppercase)
     alphabet = alphabet_st + ['A' + letter for letter in alphabet_st] + ['B' + letter for letter in alphabet_st]
     colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
@@ -334,11 +370,29 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning, 
     return reg_sensitivities
 
 def get_lambda_grid(start, stop, points_number):
+    """[summary]
+
+    Args:
+        start ([type]): [description]
+        stop ([type]): [description]
+        points_number ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """    
     step = (stop - start) / points_number
     return [start + point * step for point in range(points_number)]
 
-
 def measure_stimuli(patches_number, illuminants_number):
+    """[summary]
+
+    Args:
+        patches_number ([type]): [description]
+        illuminants_number ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """    
     P = np.zeros(shape=(patches_number * illuminants_number, 3))
     process  = DNGProcessingDemo()
     illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC'][:illuminants_number]
@@ -448,8 +502,6 @@ if __name__=='__main__':
         channels = sensitivities_given.shape[0]
 
         stimulus_learning = simulate_stimuls(sensitivities_given, C_T)
-
-        # stimulus_learning = stimulus_learning[:10]
 
         stops = list(i for i in range(1, 60, 5))
 
