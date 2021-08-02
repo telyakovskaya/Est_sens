@@ -33,6 +33,7 @@ class DNGProcessingDemo():
         raw_image = get_visible_raw_image(str(img_path))
         
         metadata = get_metadata(str(img_path))
+        metadata['cfa_pattern'] = [1,2,0,1]
  
         pipeline_exec = PipelineExecutor(
                 raw_image, metadata, self.pipeline_demo, last_stage='demosaic')
@@ -64,7 +65,6 @@ def calc_mean_color(img, points):
 def process_markup(json_path, img):
     with open(json_path, 'r') as file:
         markup_json = json.load(file)
-    print(markup_json['size'])
     color_per_region = {}
     for object in markup_json['objects']:
         color_per_region[object['tags'][0]] = calc_mean_color(img, object['data'])
@@ -130,7 +130,13 @@ def draw_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, val
     worksheet.insert_chart(chart_coord, chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
 
 
-def write_to_excel(file_path, sensitivities, R_learning, learning_sample):
+def write_to_excel(file_path, sensitivities, learning_sample):
+    R_learning = []
+    for illuminant_index in range(illuminants_number):
+            R_learning += [R[patch % patches_number] for patch in learning_sample 
+                        if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number]
+    R_learning = np.transpose(np.array(R_learning))
+
     writer = pd.ExcelWriter(file_path, engine='xlsxwriter')
     workbook = writer.book
     pd.DataFrame(sensitivities).to_excel(writer, sheet_name='Sheet1',
@@ -201,6 +207,17 @@ def reflectances_matrix(R_df):
     return R
 
 
+def R_babelcolor_matrix(R_df):
+    R = np.zeros(shape=(patches_number, len(wavelengths)))
+    x = R_df['wavelengths']
+    for patch in range(patches_number):
+        y = R_df[patch]
+        R_interpolated = interpolate.interp1d(x, y)
+        R[patch] = R_interpolated(wavelengths)
+    R /= R.max(axis=0)
+    return R
+
+
 def get_lambda_grid(start, stop, points_number):
     step = (stop - start) / points_number
     return [start + point * step for point in range(points_number)]
@@ -221,24 +238,27 @@ def measure_stimuli():
         
         color_per_region = process_markup(json_path, img)
         cc_keys = [str(i) for i in range(1, 25)]
-        carray = np.asarray([color_per_region[key] for key in cc_keys])
-        # carray = carray.reshape((6, 4, 3))
+        return np.asarray([color_per_region[key] for key in cc_keys])
+        carray = carray.reshape((6, 4, 3))
         
         # plt.imshow(img / img_max)
         # plt.show()
-        # plt.imshow(carray / img_max)
-        # plt.show()
+        # return carray / img_max
+        plt.imshow(carray / img_max)
+        plt.show()
 
         P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
                         [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
     return P
 
 
-def draw_colorchecker(stimuli):
+def draw_colorchecker(stimuli, show=False):
     carray = np.asarray([stimuli[i] for i in range(patches_number)])
     carray = carray.reshape((6, 4, 3))
+    # carray = carray / carray.max()
     plt.imshow(carray)
-    plt.show()
+    if show: plt.show()
+    return carray
 
 
 def plot_spectra(spectras, show=False):
@@ -249,11 +269,47 @@ def plot_spectra(spectras, show=False):
 
 def plot_sens(sens, pattern='-', show=False):
     for i,c in enumerate('rgb'):
-        plt.plot(wavelengths, sensitivities[:, i], pattern, c=c)
+        plt.plot(wavelengths, sens[:, i], pattern, c=c)
     if show: plt.show()
 
+
+def get_sensitivities_gt(sensitivities_df):
+    sensitivities_given = np.zeros(shape=(len(wavelengths), 3))
+    x = sensitivities_df['wavelength']
+    for i, channel in enumerate(['red', 'green', 'blue']):
+        y = sensitivities_df[channel]
+        sensitivities_interpolated = interpolate.interp1d(x, y)
+        sensitivities_given[:, i] = sensitivities_interpolated(wavelengths)
+    return sensitivities_given
+
+
+def draw_compared_colorcheckers(C, sensitivities, E_df, R, R_babelcolor):
+    draw_colorchecker(C @ sensitivities)
+    a_carray = draw_colorchecker(spectras_matrix(E_df, R) @ sensitivities_given)
+    b_carray = draw_colorchecker(spectras_matrix(E_df, R_babelcolor) @ sensitivities_given)
+    carray = draw_colorchecker(P)
+    tmp  = np.hstack([carray, np.zeros((6, 1, 3)), b_carray, np.zeros((6, 1, 3)), a_carray])
+    plt.imshow(tmp / tmp.max())
+    plt.show()  
+
+
+def plot_pictures(C, learning_sample, sensitivities_gt, simulated=False):
+    if simulated:
+        P = C @ sensitivities_gt
+    else:
+        P = measure_stimuli()
+    P_learning = np.array([P[patch] for patch in learning_sample])
+    sensitivities = inv((C.T @ C).astype(float)) @ C.T @ P_learning
+
+    plot_sens(sensitivities, show=True)
+    plot_spectra(C.T, show=True)
+    
 ##########################
 
+wavelengths = get_lambda_grid(400, 721, 25)
+illuminants_number = 1
+patches_number = 24                                      # in colorchecker
+choosed_patches_number = patches_number                  # how many patches to use 
 alphabet_st = list(string.ascii_uppercase)
 alphabet = list(string.ascii_uppercase)
 for letter1 in alphabet_st:
@@ -261,86 +317,26 @@ for letter1 in alphabet_st:
 
 colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
 exceptions = set([])           # patches bringing in large error
-wavelengths = get_lambda_grid(400, 721, 7)
-
+achromatic_single = []
+valid = set(range(patches_number * illuminants_number)) - exceptions
 #########################
 E_df = pd.read_excel('LampSpectra.xls', sheet_name='LampsSpectra', skiprows=2)
 R_df = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4, header=0)
+R_internet = R_babelcolor_matrix(pd.read_excel('24_spectras.xlsx'))
+sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet')
+channels = list((sensitivities_df.drop(columns='wavelength')).columns)
+sensitivities_gt = get_sensitivities_gt(sensitivities_df)
 
-illuminants_number = 1
-patches_number = 24        # in colorchecker
-choosed_patches_number = patches_number                  # how many patches to use 
-valid = set(range(patches_number * illuminants_number)) - exceptions
-achromatic_single = []
 learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
 
 R = reflectances_matrix(R_df)
-C = spectras_matrix(E_df, R)
-C_T = np.transpose(C)
-P = measure_stimuli()
-P_learning = np.array([P[patch] for patch in learning_sample])
-sensitivities = inv((C_T @ C).astype(float)) @ C_T @ P_learning
+spectras_Alexander = spectras_matrix(E_df, R)
+spectras_internet = spectras_matrix(E_df, R_internet)
+P_measured = measure_stimuli()
+P_gt = spectras_Alexander @ sensitivities_gt
 
-# plot_sens(sensitivities, show=True)
+plot_pictures(spectras_Alexander, learning_sample, sensitivities_gt, simulated=True)
 
-sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet')
-channels = list((sensitivities_df.drop(columns='wavelength')).columns)
-
-sensitivities_given = np.zeros(shape=(len(wavelengths), 3))
-x = sensitivities_df['wavelength']
-for channel in channels:
-    y = sensitivities_df[channel]
-    sensitivities_interpolated = interpolate.interp1d(x, y)
-    sensitivities_given[:, channels.index(channel)] = sensitivities_interpolated(wavelengths)
-draw_colorchecker(C @ sensitivities_given)
-
-
-R_learning = []
-for illuminant_index in range(illuminants_number):
-        R_learning += [R[patch % patches_number] for patch in learning_sample 
-                    if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number]
-R_learning = np.transpose(np.array(R_learning))
-write_to_excel('Sensitivities.xlsx', sensitivities, R_learning, learning_sample)
-
-def simulate_stimuls(sensitivities_given: np.ndarray, spectras: np.ndarray) -> np.ndarray:
-    """[summary]
-
-    Args:
-        sensitivities_given (np.ndarray):
-            Camera sensitivities  n x 3 
-        spectras (np.ndarray):
-            Spectral functions n x k
-
-    Returns:
-        np.ndarray: 
-        Resulted colors k x 3
-    """
-    assert len(spectras.shape) == len(sensitivities_given.shape) == 2
-    assert spectras.shape[0] == sensitivities_given.shape[0] 
-    stimulus_learning = np.transpose(spectras) @ sensitivities_given
-    assert stimulus_learning.shape == (spectras.shape[-1], stimulus_learning.shape[-1]), \
-        f'{stimulus_learning.shape} != {(spectras.shape[-1], stimulus_learning.shape[-1])}'
-    return stimulus_learning
-
-# stimulus_learning = simulate_stimuls(sensitivities_given, C_T)
-
-def estimate_sensitivities(spectras: np.ndarray, stimulus: np.ndarray) -> np.ndarray:
-    """[summary]
-
-    Args:
-        spectras (np.ndarray): 
-            n x k
-        stimulus (np.ndarray): 
-            k x 3
-
-    Returns:
-        np.ndarray: 
-            n x 3
-    """
-    H = inv((spectras @ spectras.T).astype(float)) @ spectras
-    assert H.shape == (spectras.shape[0], stimulus.shape[0])
-    sensitivities =  H @ stimulus
-    return sensitivities
-
-    
-
+P_learning = np.array([P_measured[patch] for patch in learning_sample])
+sensitivities = inv((spectras_Alexander.T @ spectras_Alexander).astype(float)) @ spectras_Alexander.T @ P_learning
+write_to_excel('Sensitivities.xlsx', sensitivities, learning_sample)

@@ -54,7 +54,8 @@ class RawProcessingPipelineDemo:
         return normalize(linearized_raw, img_meta['black_level'], img_meta['white_level'])
 
     def demosaic(self, normalized, img_meta):
-        return simple_demosaic(normalized, [1,2,0,1])
+        # return simple_demosaic(normalized, [1,2,0,1])
+        return simple_demosaic(normalized, img_meta['cfa_pattern'])
 
     def denoise(self, demosaic, img_meta):
         if not self.params['denoise_flg']:
