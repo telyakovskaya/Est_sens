@@ -37,11 +37,26 @@ class DNGProcessingDemo():
  
         pipeline_exec = PipelineExecutor(
                 raw_image, metadata, self.pipeline_demo, last_stage='demosaic')
-                # raw_image, metadata, self.pipeline_demo, last_stage='white_balance')
         
         return pipeline_exec()
 
     
+def calc_variance(img, points):
+    '''
+    Args:
+        img(np.array): img with int values
+        points(list): list of regions coords
+    '''
+    points = np.array(points)
+    y, x = draw.polygon(points[:,1], points[:,0], shape=img.shape)
+    img1 = img[y, x]
+    region_variance = []
+    for channel in range(3):
+        region_variance.append(np.std(img1[:,channel]))
+    
+    return region_variance
+
+
 def calc_mean_color(img, points):
     '''
     Args:
@@ -58,7 +73,6 @@ def calc_mean_color(img, points):
     # plt.show()
     region_color = np.mean(img[y, x], axis=0)
 
-    img[y, x] = region_color
     return region_color
 
 
@@ -66,9 +80,11 @@ def process_markup(json_path, img):
     with open(json_path, 'r') as file:
         markup_json = json.load(file)
     color_per_region = {}
+    variance_per_region = {}
     for object in markup_json['objects']:
         color_per_region[object['tags'][0]] = calc_mean_color(img, object['data'])
-    return color_per_region
+        variance_per_region[object['tags'][0]] = calc_variance(img, object['data'])
+    return color_per_region,  variance_per_region
 
 
 def choose_learning_sample(valid, achromatic_single, ratio=0.8):
@@ -225,6 +241,7 @@ def get_lambda_grid(start, stop, points_number):
 
 def measure_stimuli():
     P = np.zeros(shape=(patches_number * illuminants_number, 3))
+    variances = np.zeros(shape=(patches_number * illuminants_number, 3))
     process  = DNGProcessingDemo()
     illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC'][:illuminants_number]
 
@@ -236,7 +253,7 @@ def measure_stimuli():
         img = process(img_path).astype(np.float32)
         # img_max = np.quantile(img, 0.99)
         
-        color_per_region = process_markup(json_path, img)
+        color_per_region, variance_per_region = process_markup(json_path, img)
         # cc_keys = [str(i) for i in range(1, 25)]
         # return np.asarray([color_per_region[key] for key in cc_keys])
         # carray = carray.reshape((6, 4, 3))
@@ -249,7 +266,9 @@ def measure_stimuli():
 
         P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
                         [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
-    return P
+        variances[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
+                        [variance_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
+    return P, variances
 
 
 def draw_colorchecker(stimuli, show=False):
@@ -270,7 +289,7 @@ def plot_spectra(spectras, show=False):
 def plot_sens(sens, sensitivities_gt, pattern='-', show=False):
     for i,c in enumerate('rgb'):
         plt.plot(wavelengths, sens[:, i], pattern, c=c)
-        plt.plot(wavelengths, sensitivities_gt[:,i], '--', c=c)
+        # plt.plot(wavelengths, sensitivities_gt[:,i], '--', c=c)
     if show: plt.show()
 
 
@@ -297,8 +316,10 @@ def draw_compared_colorcheckers(C, sensitivities, E_df, R, R_babelcolor):
 def plot_pictures(C, learning_sample, sensitivities_gt, simulated=False):
     if simulated:
         P_learning = C @ sensitivities_gt
+        noise = np.random.normal(0,.0001, P_learning.shape)
+        P_learning += noise
     else:
-        P = measure_stimuli()
+        P, variances = measure_stimuli()
         P_learning = np.array([P[patch] for patch in learning_sample])
     
     sensitivities = inv((C.T @ C).astype(float)) @ C.T @ P_learning
@@ -307,18 +328,113 @@ def plot_pictures(C, learning_sample, sensitivities_gt, simulated=False):
     # plot_spectra(C.T, show=True)
 
 
-def check_stimuls_accuracy(P):
-    P /= P.max(axis=0)
-    for channel in range(3): 
-        mean_stimul = np.mean(P[:, channel])
-        variance_stimuls = statistics.variance(P[:, channel])
-        print(channel, mean_stimul, variance_stimuls)
-        sns.histplot(P[:, channel], kde=True).get_figure()
-        plt.show()
+def check_stimuls_accuracy(P, variances):
+    # P /= P.max(axis=0)
+    # for channel in range(3): 
+    #     mean_stimul = np.mean(P[:, channel])
+    #     variance_stimuls = statistics.variance(P[:, channel])
+    #     print(channel, mean_stimul, variance_stimuls)
+    #     sns.histplot(P[:, channel], kde=True).get_figure()
+    #     plt.show()
+
+    # P /= P.max(axis=0)
+    for stimul in range(len(P)): 
+        for channel in range(3):
+            print(f'p: {stimul}, ch: {channel}, std(%): {variances[stimul, channel] / P[stimul, channel] * 100}')
+            
+
+def regularization(reg_start, reg_stop, C, P_learning):
+    def menger(p1, p2, p3):
+        residual1, solution1 = p1
+        residual2, solution2 = p2
+        residual3, solution3 = p3
+        p1p2 = (residual2 - residual1)**2 + (solution2 - solution1)**2
+        p2p3 = (residual3 - residual2)**2 + (solution3 - solution2)**2
+        p3p1 = (residual1 - residual3)**2 + (solution1 - solution3)**2
+        numerator = residual1 * solution2 + residual2 * solution3 + residual3 * solution1 - \
+                    residual1 * solution3 - residual3 * solution2 - residual2 * solution1
+        return (2 * numerator) / (math.sqrt(p1p2 * p2p3 * p3p1))
+
+
+    def l_curve_P(reg_parameter, channel):
+        C_T = np.transpose(C)
+        sensitivities[:,channel] = inv((C_T @ C).astype(float) + np.identity(len(wavelengths)) * reg_parameter) @ C_T @ P_learning[:,channel]
+        solution = ((np.linalg.norm(sensitivities[:,channel], 2))) ** 2
+        residual_vector = C @ sensitivities[:,channel] - P_learning[:,channel]
+        residual = ((np.linalg.norm(residual_vector, 2))) ** 2
+        return residual, solution
+
+
+    def find_optimal_parameter():
+        optimal_parameter = [0 for _ in range(3)]
+        for channel in range(3):
+            p = {}
+            reg_parameter = {}
+            ch_letter = channels[channel]
+            reg_parameter[1], reg_parameter[4] = reg_start[ch_letter], reg_stop[ch_letter]   # search extremes
+            epsilon = 0.00005                                                                # termination threshold
+            phi = (1 + math.sqrt(5)) / 2                                                     # golden section
+            
+            reg_parameter[2] = 10 ** ((math.log10(reg_parameter[4]) + phi * math.log10(reg_parameter[1])) / (1 + phi))
+            reg_parameter[3] = 10 ** (math.log10(reg_parameter[1]) + math.log10(reg_parameter[4]) - math.log10(reg_parameter[2]))
+
+            for i in range(1, 5):
+                p[i] = l_curve_P(reg_parameter[i], channel)
+            
+            while ((reg_parameter[4] - reg_parameter[1]) / reg_parameter[4]) >= epsilon:
+                C2 = menger(p[1], p[2], p[3])
+                C3 = menger(p[2], p[3], p[4])
+                
+                while C3 <= 0:
+                    reg_parameter[4] = reg_parameter[3]
+                    reg_parameter[3] = reg_parameter[2]
+                    reg_parameter[2] = 10 ** ((math.log10(reg_parameter[4]) + phi * math.log10(reg_parameter[1])) / (1 + phi))
+                    p[4] = p[3]
+                    p[3] = p[2]
+                    p[2] = l_curve_P(reg_parameter[2], channel)
+                    C3 = menger(p[2], p[3], p[4])
+                
+                if C2 > C3:
+                    optimal_parameter[channel] = reg_parameter[2]
+                    reg_parameter[4] = reg_parameter[3]
+                    reg_parameter[3] = reg_parameter[2]
+                    reg_parameter[2] = 10 ** ((math.log10(reg_parameter[4]) + phi * math.log10(reg_parameter[1])) / (1 + phi))
+                    p[4] = p[3]
+                    p[3] = p[2]
+                    p[2] = l_curve_P(reg_parameter[2], channel)
+                else:
+                    optimal_parameter[channel] = reg_parameter[3]
+                    reg_parameter[1] = reg_parameter[2]
+                    reg_parameter[2] = reg_parameter[3]
+                    reg_parameter[3] = 10 ** (math.log10(reg_parameter[1]) + math.log10(reg_parameter[4]) - math.log10(reg_parameter[2]))
+                    p[1] = p[2]
+                    p[2] = p[3]
+                    p[3] = l_curve_P(reg_parameter[3], channel)
+            
+        return optimal_parameter
+
+
+    optimal_parameter = find_optimal_parameter()
+    print(optimal_parameter)
     
+    reg_sensitivities = np.zeros(shape=(len(wavelengths), 3))
+    for channel in range(3):                
+        reg_sensitivities[:,channel] = inv((C.T @ C).astype(float) + np.identity(len(wavelengths)) *\
+             optimal_parameter[channel]) @ C.T @ P_learning[:,channel]
+
+    return reg_sensitivities
+
+
+def easy_regularization(C, P, optimal_parameter):
+    reg_sensitivities = np.zeros(shape=(len(wavelengths), 3))
+    for channel in range(3):
+        reg_sensitivities[:,channel] = inv((C.T @ C).astype(float) + np.identity(len(wavelengths)) \
+            * optimal_parameter[channel]) @ C.T @ P[:,channel]
+    return reg_sensitivities
+
 ##########################
 
-wavelengths = get_lambda_grid(400, 721, 13)
+wavelengths = get_lambda_grid(400, 721, 20)
 illuminants_number = 1
 patches_number = 24                                      # in colorchecker
 choosed_patches_number = patches_number                  # how many patches to use 
@@ -347,15 +463,27 @@ learning_sample, patches = choose_learning_sample(valid, achromatic_single, rati
 R = reflectances_matrix(R_df)
 spectras_Alexander = spectras_matrix(E_df, R)
 spectras_internet = spectras_matrix(E_df, R_internet)
-P_measured = measure_stimuli()
+P_measured, variances = measure_stimuli()
 P_gt = spectras_Alexander @ sensitivities_gt
 
-check_stimuls_accuracy(P_measured)
+# print(np.concatenate((P_measured / P_measured.max(axis=0), P_gt / P_gt.max(axis=0)), axis=1))
+# check_stimuls_accuracy(P_measured, variances)
 
-# plot_pictures(spectras_Alexander, learning_sample, sensitivities_gt, simulated=True)
+
+# optimal_parameter = [0.5067055579111499, 0.6430519533349813, 0.4257159707254087]
+# reg_sensitivities = easy_regularization(spectras_Alexander, P_measured, optimal_parameter)
+
 
 P_learning = np.array([P_measured[patch] for patch in learning_sample])
 sensitivities = inv((spectras_Alexander.T @ spectras_Alexander).astype(float)) @ spectras_Alexander.T @ P_learning
+
+reg_start = {"red": 0.05, "green": 0.05, "blue": 0.05}
+reg_stop = {"red": 5, "green": 5, "blue": 5}
+reg_sensitivities = regularization(reg_start, reg_stop, spectras_Alexander, P_learning)
+
+plot_pictures(spectras_Alexander, learning_sample, sensitivities_gt, simulated=False)
+plot_sens(reg_sensitivities, sensitivities_gt, show=True)
+
 # write_to_excel('Sensitivities.xlsx', sensitivities, learning_sample)
 
 
