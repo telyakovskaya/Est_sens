@@ -293,9 +293,9 @@ def draw_compared_colorcheckers(C, sensitivities, E_df, R, R_babelcolor):
     plt.show()  
 
 
-def plot_pictures(C, learning_sample, simulated=False):
+def plot_pictures(C, learning_sample, sensitivities_gt, simulated=False):
     if simulated:
-        P = spectras_Alexander @ sensitivities_gt
+        P = C @ sensitivities_gt
     else:
         P = measure_stimuli()
     P_learning = np.array([P[patch] for patch in learning_sample])
@@ -335,7 +335,7 @@ spectras_internet = spectras_matrix(E_df, R_internet)
 P_measured = measure_stimuli()
 P_gt = spectras_Alexander @ sensitivities_gt
 
-plot_pictures(spectras_internet, learning_sample, simulated=False)
+plot_pictures(spectras_Alexander, learning_sample, sensitivities_gt, simulated=True)
 
 P_learning = np.array([P_measured[patch] for patch in learning_sample])
 sensitivities = inv((spectras_Alexander.T @ spectras_Alexander).astype(float)) @ spectras_Alexander.T @ P_learning
