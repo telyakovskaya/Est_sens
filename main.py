@@ -19,8 +19,6 @@ from plot import plot_sens, plot_spectra
 from sim import change_wavelengths
 from data import load_illums, load_refl, load_sens
 
-
-
 # def choose_learning_sample(valid, achromatic_single, ratio=0.8):
 #     chromatic_learning_sample = []
 #     achromatic = [i * patches_number + single for i in range(illuminants_number) for single in achromatic_single]
@@ -36,7 +34,18 @@ from data import load_illums, load_refl, load_sens
 #     return learning_sample, patches
 
 
-def C_matrix(sample, E, R):
+def C_matrix(sample, E, R, patches_number):
+    """"
+    This function calculates matrix C
+    Args:
+        sample ([type]): [description]
+        E (np.ndarray): [description]
+        R (np.ndarray): [description]
+        patches_number ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """    
     C = np.zeros(shape=(len(sample), len(E)))
     C_current_index = 0
     print(E.shape)
@@ -94,7 +103,12 @@ def draw_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, val
     worksheet.insert_chart(chart_coord, chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
 
 
-def write_to_excel(file_path, sensitivities, R_learning, learning_sample):
+def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channels):
+    alphabet_st = list(string.ascii_uppercase)
+    alphabet = alphabet_st + ['A' + letter for letter in alphabet_st] + ['B' + letter for letter in alphabet_st]
+    colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
+    wavelengths = np.arange(400, 721, 10)
+
     writer = pd.ExcelWriter(file_path, engine='xlsxwriter')
     workbook = writer.book
     pd.DataFrame(sensitivities).to_excel(writer, sheet_name='Sheet1',
@@ -138,7 +152,11 @@ def write_to_excel(file_path, sensitivities, R_learning, learning_sample):
     workbook.close()
 
 
-def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning):
+def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning, channels):
+    alphabet_st = list(string.ascii_uppercase)
+    alphabet = alphabet_st + ['A' + letter for letter in alphabet_st] + ['B' + letter for letter in alphabet_st]
+    colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
+    C_T = np.transpose(C)
     def menger(p1, p2, p3):
         residual1, solution1 = p1
         residual2, solution2 = p2
@@ -152,7 +170,6 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning):
 
 
     def l_curve_P(reg_parameter, channel):
-        C_T = np.transpose(C)
         sensitivities[:,channel] = inv((C_T @ C).astype(float) + np.identity(107) * reg_parameter) @ C_T @ P_learning[:,channel]
         solution = ((np.linalg.norm(sensitivities[:,channel], 2))) ** 2
         residual_vector = C @ sensitivities[:,channel] - P_learning[:,channel]
@@ -301,13 +318,12 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning):
 
     return reg_sensitivities
 
-<<<<<<< HEAD
 def get_lambda_grid(start, stop, points_number):
     step = (stop - start) / points_number
     return [start + point * step for point in range(points_number)]
 
 
-def measure_stimuli():
+def measure_stimuli(patches_number, illuminants_number):
     P = np.zeros(shape=(patches_number * illuminants_number, 3))
     process  = DNGProcessingDemo()
     illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC'][:illuminants_number]
@@ -322,10 +338,8 @@ def measure_stimuli():
         P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
                         [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
     return P
-##########################
-=======
->>>>>>> 167d4f595e63ad36ce102543d58b18a5ef8ca043
 
+##########################
 
 if __name__=='__main__':    
     def do_nothing(img, meta): return img
@@ -377,13 +391,9 @@ if __name__=='__main__':
 
 
     def main():
-        alphabet_st = list(string.ascii_uppercase)
-        alphabet = alphabet_st + ['A' + letter for letter in alphabet_st] + ['B' + letter for letter in alphabet_st]
-        colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
         exceptions = set([])
         wavelengths = np.arange(400, 721, 10)
 
-        #########################
         E_dict, E_wavelengths = load_illums()
         R_dict, R_wavelengths = load_refl()
         
@@ -396,16 +406,15 @@ if __name__=='__main__':
 
         illuminants_number = len(E_dict)
         patches_number = len(R_dict)
-
+        print(E.shape)
         choosed_patches_number = patches_number                  # how many patches to use 
         valid = set(range(patches_number * illuminants_number)) - exceptions
         achromatic_single = list(range(14)) + [patch for patch in range(14, 126) if patch % 14 == 0 or patch % 14 == 13] + list(range(126, 140)) + \
                 list(range(60, 66)) + list(range(74, 80))
         # learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
         learning_sample = R
-
-        # print(learning_sample)
-
+        #print(len(learning_sample))
+        exit()      
         # C = np.zeros(shape=(len(learning_sample), len(E)))
         # C_current_index = 0
         # for illuminant_index in range(6):
@@ -414,10 +423,8 @@ if __name__=='__main__':
         #     C[C_current_index:C_current_index + len(R_learning)] = np.transpose(np.matmul(E, np.transpose(R_learning)))
         #     C_current_index += len(R_learning)
 
-        # C_T = np.transpose(C)
-
         # E = np.ones((33, 1))
-        C = C_matrix(learning_sample, E, R)
+        C = C_matrix(learning_sample, E, R, patches_number)
         C_T = np.transpose(C)
 
         sensitivities_given_dict, sens_wavelengths = load_sens()
@@ -446,7 +453,7 @@ if __name__=='__main__':
                 R_learning += [R[patch % patches_number] for patch in learning_sample 
                             if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number]
         R_learning = np.transpose(np.array(R_learning))
-        write_to_excel('Sensitivities.xlsx', sensitivities, R_learning, learning_sample)
+        write_to_excel('Sensitivities.xlsx', sensitivities, R_learning, learning_sample, channels)
 
         # ####################################
         # Check accuracy usings learning and test samples: 
