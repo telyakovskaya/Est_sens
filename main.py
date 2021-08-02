@@ -38,19 +38,18 @@ def C_matrix(sample, E, R, patches_number):
     """"
     This function calculates matrix C
     Args:
-        sample ([type]): [description]
-        E (np.ndarray): [description]
-        R (np.ndarray): [description]
-        patches_number ([type]): [description]
+        sample (list): choosed pathes for learning
+        E (np.ndarray): s x k, s-number of illuminations
+        R (np.ndarray): n x k, k-number of wavelengths
+        patches_number (int): actually, number of patches = n
 
     Returns:
-        [type]: [description]
+        [np.ndarray]: (sn) x k
     """    
-    C = np.zeros(shape=(len(sample), len(E)))
+    C = np.zeros(shape=(len(sample), E.shape[1]))
     C_current_index = 0
-    print(E.shape)
+    E = np.transpose(E)
     for illuminant_index in range(E.shape[-1]):
-        print(illuminant_index)
         e_diag = np.diag(E[:,illuminant_index])
         R_current = np.array([R[patch % patches_number] for patch in sample 
                     if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number])
@@ -60,6 +59,22 @@ def C_matrix(sample, E, R, patches_number):
 
 
 def check_accuracy(patches_number, stimulus_predicted, stimulus_genuine):
+    """
+
+    Args:
+        patches_number (int): actually, number of patches
+        stimulus_predicted (two-dimensional list): total number of patches x 3
+        stimulus_genuine (two-dimensional list): total number of patches x 3
+
+    Returns:
+        mean_angle[float]: average value of angles between vectors
+        variance_angles[float]: variance of angles
+        angles_fig[]: histogram for angles
+        mean_norm[float]: average value of vector lengths
+        variance_norms[float]: variance of vector lengths
+        norms_fig[]: histogram for vector lengths
+    """    
+
     angles = []
     norms = []
 
@@ -406,15 +421,14 @@ if __name__=='__main__':
 
         illuminants_number = len(E_dict)
         patches_number = len(R_dict)
-        print(E.shape)
+        
         choosed_patches_number = patches_number                  # how many patches to use 
         valid = set(range(patches_number * illuminants_number)) - exceptions
         achromatic_single = list(range(14)) + [patch for patch in range(14, 126) if patch % 14 == 0 or patch % 14 == 13] + list(range(126, 140)) + \
                 list(range(60, 66)) + list(range(74, 80))
         # learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
-        learning_sample = R
-        #print(len(learning_sample))
-        exit()      
+        learning_sample = [i for i in range(patches_number * illuminants_number)]
+        #print(len(learning_sample))     
         # C = np.zeros(shape=(len(learning_sample), len(E)))
         # C_current_index = 0
         # for illuminant_index in range(6):
@@ -424,9 +438,10 @@ if __name__=='__main__':
         #     C_current_index += len(R_learning)
 
         # E = np.ones((33, 1))
+        
         C = C_matrix(learning_sample, E, R, patches_number)
         C_T = np.transpose(C)
-
+    
         sensitivities_given_dict, sens_wavelengths = load_sens()
         sensitivities_given = np.asarray(list(sensitivities_given_dict.values()))
         sensitivities_given = change_wavelengths(sensitivities_given, sens_wavelengths, wavelengths)
@@ -437,7 +452,7 @@ if __name__=='__main__':
         # stimulus_learning = stimulus_learning[:10]
 
         stops = list(i for i in range(1, 60, 5))
-        # 36 -- norm!
+
         for stop in stops:
             print(stop)
             sensitivities = estimate_sensitivities(C_T[:, :stop], stimulus_learning[:stop])
