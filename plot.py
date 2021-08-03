@@ -20,7 +20,7 @@ def visualization(nslices: int, tips: list):
     This function builds heatmap to visualize accuracy usings learning and test samples
     Args:
         nslices (int): number of bars in colorchecker
-        tips ([type]): list of sensitivities
+        tips (list): list of sensitivities
     """    
     a = np.array(tips)
     tips1 = a.reshape((nslices, -1))

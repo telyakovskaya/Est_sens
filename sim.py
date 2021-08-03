@@ -3,10 +3,18 @@ from numpy.linalg import inv
 from scipy import interpolate
 
 def change_wavelengths(spectras, wl_in, wl_out):
+    """ Interpolation of values to some set of wavelengths
+
+    Args:
+        spectras (np.ndarray): s x k 
+        wl_in (list): all wavelengths, k
+        wl_out (list): desired wavelengths, m
+
+    Returns:
+        (np.ndarray): s x m
+    """    
     interp = interpolate.interp1d(wl_in, spectras)
     return interp(wl_out)
-
-
 
 def simulate_stimuls(sensitivities_given: np.ndarray, spectras: np.ndarray) -> np.ndarray:
     """[summary]

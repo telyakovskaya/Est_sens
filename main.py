@@ -101,19 +101,8 @@ def check_accuracy(patches_number, stimulus_predicted, stimulus_genuine):
 
 
 def draw_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, values_coord, chart_coord, data_series, colors):
-    """[summary]
+    """This function is auxiliary for plotting graphs
 
-    Args:
-        workbook ([type]): [description]
-        worksheet ([type]): [description]
-        title ([type]): [description]
-        x_axis ([type]): [description]
-        y_axis ([type]): [description]
-        categories_coord ([type]): [description]
-        values_coord ([type]): [description]
-        chart_coord ([type]): [description]
-        data_series ([type]): [description]
-        colors ([type]): [description]
     """    
     chart = workbook.add_chart({'type': 'scatter', 'subtype': 'smooth'})
     for plot in data_series:
@@ -133,14 +122,8 @@ def draw_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, val
 
 
 def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channels):
-    """[summary]
+    """This function builds graphs in Excel
 
-    Args:
-        file_path ([type]): [description]
-        sensitivities ([type]): [description]
-        R_learning ([type]): [description]
-        learning_sample ([type]): [description]
-        channels ([type]): [description]
     """    
     alphabet_st = list(string.ascii_uppercase)
     alphabet = alphabet_st + ['A' + letter for letter in alphabet_st] + ['B' + letter for letter in alphabet_st]
@@ -189,26 +172,13 @@ def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channe
     
     workbook.close()
 
-def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning, channels):
-    """[summary]
+class SensEstimator:
+    def __init__(self, reg_start, reg_stop, threshold_stop):
+        self.reg_start = reg_start
+        self.reg_stop = reg_stop
+        self.threshold_stop = threshold_stop
 
-    Args:
-        reg_start ([type]): [description]
-        reg_stop ([type]): [description]
-        reg_step ([type]): [description]
-        sensitivities ([type]): [description]
-        C ([type]): [description]
-        P_learning ([type]): [description]
-        channels ([type]): [description]
-
-    Returns:
-        [type]: [description]
-    """    
-    alphabet_st = list(string.ascii_uppercase)
-    alphabet = alphabet_st + ['A' + letter for letter in alphabet_st] + ['B' + letter for letter in alphabet_st]
-    colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
-    C_T = np.transpose(C)
-    def menger(p1, p2, p3):
+    def menger(self, p1, p2, p3):
         residual1, solution1 = p1
         residual2, solution2 = p2
         residual3, solution3 = p3
@@ -219,34 +189,33 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning, 
                     residual1 * solution3 - residual3 * solution2 - residual2 * solution1
         return (2 * numerator) / (math.sqrt(p1p2 * p2p3 * p3p1))
 
-
-    def l_curve_P(reg_parameter, channel):
+    def l_curve_P(self, reg_parameter, channel, C, sensitivities, P_learning):
+        C_T = np.transpose(C)
         sensitivities[:,channel] = inv((C_T @ C).astype(float) + np.identity(107) * reg_parameter) @ C_T @ P_learning[:,channel]
         solution = ((np.linalg.norm(sensitivities[:,channel], 2))) ** 2
         residual_vector = C @ sensitivities[:,channel] - P_learning[:,channel]
         residual = ((np.linalg.norm(residual_vector, 2))) ** 2
         return residual, solution
 
-
-    def find_optimal_parameter():
+    def find_optimal_parameter(self, channels, C, sensitivities, P_learning):
         optimal_parameter = [0 for _ in range(3)]
         for channel in range(3):
             p = {}
             reg_parameter = {}
             ch_letter = channels[channel]
-            reg_parameter[1], reg_parameter[4] = reg_start[ch_letter], reg_stop[ch_letter]   # search extremes
-            epsilon = 0.00005                                                                  # termination threshold
+            reg_parameter[1], reg_parameter[4] = self.reg_start[ch_letter], self.reg_stop[ch_letter]   # search extremes
+            epsilon = self.threshold_stop                                                             # termination threshold
             phi = (1 + math.sqrt(5)) / 2                                                     # golden section
             
             reg_parameter[2] = 10 ** ((math.log10(reg_parameter[4]) + phi * math.log10(reg_parameter[1])) / (1 + phi))
             reg_parameter[3] = 10 ** (math.log10(reg_parameter[1]) + math.log10(reg_parameter[4]) - math.log10(reg_parameter[2]))
 
             for i in range(1, 5):
-                p[i] = l_curve_P(reg_parameter[i], channel)
+                p[i] = self.l_curve_P(reg_parameter[i], channel, C, sensitivities, P_learning)
             
             while ((reg_parameter[4] - reg_parameter[1]) / reg_parameter[4]) >= epsilon:
-                C2 = menger(p[1], p[2], p[3])
-                C3 = menger(p[2], p[3], p[4])
+                C2 = self.menger(p[1], p[2], p[3])
+                C3 = self.menger(p[2], p[3], p[4])
                 
                 while C3 <= 0:
                     reg_parameter[4] = reg_parameter[3]
@@ -254,8 +223,8 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning, 
                     reg_parameter[2] = 10 ** ((math.log10(reg_parameter[4]) + phi * math.log10(reg_parameter[1])) / (1 + phi))
                     p[4] = p[3]
                     p[3] = p[2]
-                    p[2] = l_curve_P(reg_parameter[2], channel)
-                    C3 = menger(p[2], p[3], p[4])
+                    p[2] = self.l_curve_P(reg_parameter[2], channel, C, sensitivities, P_learning)
+                    C3 = self.menger(p[2], p[3], p[4])
                 
                 if C2 > C3:
                     optimal_parameter[channel] = reg_parameter[2]
@@ -264,7 +233,7 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning, 
                     reg_parameter[2] = 10 ** ((math.log10(reg_parameter[4]) + phi * math.log10(reg_parameter[1])) / (1 + phi))
                     p[4] = p[3]
                     p[3] = p[2]
-                    p[2] = l_curve_P(reg_parameter[2], channel)
+                    p[2] = self.l_curve_P(reg_parameter[2], channel, C, sensitivities, P_learning)
                 else:
                     optimal_parameter[channel] = reg_parameter[3]
                     reg_parameter[1] = reg_parameter[2]
@@ -272,141 +241,122 @@ def regularization(reg_start, reg_stop, reg_step, sensitivities, C, P_learning, 
                     reg_parameter[3] = 10 ** (math.log10(reg_parameter[1]) + math.log10(reg_parameter[4]) - math.log10(reg_parameter[2]))
                     p[1] = p[2]
                     p[2] = p[3]
-                    p[3] = l_curve_P(reg_parameter[3], channel)
+                    p[3] = self.l_curve_P(reg_parameter[3], channel, C, sensitivities, P_learning)
             
         return optimal_parameter
 
 
-    optimal_parameter = find_optimal_parameter()
-    reg_sensitivities = np.zeros(shape=(107, 3))
-    solution_norms = [{} for _ in range(3)]
-    residual_norms = [{} for _ in range(3)]
-
-    for channel in range(3):
-        ch_letter = channels[channel]
+    def estimate(self, reg_start, reg_stop, reg_step, sensitivities, C, P_learning, channels):
+        C_T = np.transpose(C)
+        optimal_parameter = self.find_optimal_parameter()
+        reg_sensitivities = np.zeros(shape=(107, 3))
+        solution_norms = [{} for _ in range(3)]
+        residual_norms = [{} for _ in range(3)]
+        for channel in range(3):
+            ch_letter = channels[channel]
         
-        for reg_parameter in np.arange(reg_start[ch_letter], reg_stop[ch_letter], reg_step[ch_letter]):
-            residual, solution = l_curve_P(reg_parameter, channel)
+            for reg_parameter in np.arange(reg_start[ch_letter], reg_stop[ch_letter], reg_step[ch_letter]):
+            residual, solution = self.l_curve_P(reg_parameter, channel, C, sensitivities, P_learning)
             solution_norms[channel][solution] = reg_parameter
             residual_norms[channel][residual] = reg_parameter
                 
-        reg_sensitivities[:,channel] = inv((C_T @ C).astype(float) + np.identity(107) * optimal_parameter[channel]) @ C_T @ P_learning[:,channel]
+            reg_sensitivities[:,channel] = inv((C_T @ C).astype(float) + np.identity(107) * optimal_parameter[channel]) @ C_T @ P_learning[:,channel]
+        return reg_sensitivities
+     
+    def write_to_excel(self, E):
+        alphabet_st = list(string.ascii_uppercase)
+        alphabet = alphabet_st + ['A' + letter for letter in alphabet_st] + ['B' + letter for letter in alphabet_st]
+        colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
+        writer = pd.ExcelWriter('Sensitivities_2.xlsx', engine='xlsxwriter')
+        workbook = writer.book
 
-    #### plot reg_sensitivities and l-curves ####
-    writer = pd.ExcelWriter('Sensitivities_2.xlsx', engine='xlsxwriter')
-    workbook = writer.book
+        reg_sensitivities_df = pd.DataFrame(sensitivities)
+        reg_sensitivities_df.to_excel(writer, sheet_name='Sheet1', index=False, header=channels, startrow=1, startcol=1)
 
-    reg_sensitivities_df = pd.DataFrame(sensitivities)
-    reg_sensitivities_df.to_excel(writer, sheet_name='Sheet1', index=False, header=channels, startrow=1, startcol=1)
+        worksheet = writer.sheets['Sheet1']
 
-    worksheet = writer.sheets['Sheet1']
+        bold = workbook.add_format({'bold': 1})
+        worksheet.write('C1', 'Sensitivities', bold)
+        worksheet.write('A2', 'Lambda grid', bold)
+        for row_num, data in enumerate(E['Lambda grid']):
+            worksheet.write(row_num + 2, 0, data)
 
-    bold = workbook.add_format({'bold': 1})
-    worksheet.write('C1', 'Sensitivities', bold)
-    worksheet.write('A2', 'Lambda grid', bold)
-    for row_num, data in enumerate(E_df['Lambda grid']):
-        worksheet.write(row_num + 2, 0, data)
-
-    chart = workbook.add_chart({'type': 'scatter', 'subtype': 'smooth'})
-    start_letter_index = 1
-    for channel in channels:
-        channel_index = channels.index(channel)
-        current_letter = alphabet[start_letter_index + channel_index]
-        chart.add_series({
-            'name': channel,
-            'line':   {'width': 1.25, 'color': colors_RGB[channel_index]},
-            'categories': '=Sheet1!$A$3:$A$109',
-            'values': '=Sheet1!$' + current_letter + '$3:$' + current_letter + '$109',
-        })
-
-    chart.set_title({'name': 'Sensitivity'})
-    chart.set_x_axis({'name': 'Wavelengths, nm', 'min': 360, 'max': 740})
-    chart.set_y_axis({'name': 'Spectral Response Function'})
-
-    chart.set_style(15)
-    worksheet.insert_chart('E1', chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
-
-    start_letter = alphabet.index("R")
-
-    for channel in range(3):
-        ch_letter = channels[channel]
-        parameter_letter = alphabet[start_letter + channel * 16]
-        solution_letter = alphabet[start_letter + 1 + channel * 16]
-        residual_letter = alphabet[start_letter + 2 + channel * 16]
-        end_row = 2 + math.ceil((reg_stop[ch_letter] - reg_start[ch_letter])/reg_step[ch_letter])
-        chart_letter = alphabet[start_letter + 3 + channel * 16]
-        
-        worksheet.write(solution_letter + '1', ch_letter, bold)
-        worksheet.write(parameter_letter + '2', "Regularization parameter")
-        worksheet.write(solution_letter + '2', "Solution's norms")
-        worksheet.write(residual_letter + '2', "Residual's norms")
-        
-        for row_num, data in enumerate(np.arange(reg_start[ch_letter], reg_stop[ch_letter], reg_step[ch_letter])):
-            worksheet.write(row_num + 2, start_letter + channel * 16, data)
-            
-        for row_num, data in enumerate(solution_norms[channel].keys()):
-            worksheet.write(row_num + 2, start_letter + 1 + channel * 16, data)
-        
-        for row_num, data in enumerate(residual_norms[channel].keys()):
-            worksheet.write(row_num + 2, start_letter + 2 + channel * 16, data)
-            
         chart = workbook.add_chart({'type': 'scatter', 'subtype': 'smooth'})
-        
-        chart.add_series({
-            'line':   {'width': 1.25, 'color': colors_RGB[channel]},
-            'categories': '=Sheet1!$' + residual_letter + '$3:$' + residual_letter + '$'+ str(end_row),
-            'values': '=Sheet1!$' + solution_letter + '$3:$' + solution_letter + '$' + str(end_row),
-        })
+        start_letter_index = 1
+        for channel in channels:
+            channel_index = channels.index(channel)
+            current_letter = alphabet[start_letter_index + channel_index]
+            chart.add_series({
+                'name': channel,
+                'line':   {'width': 1.25, 'color': colors_RGB[channel_index]},
+                'categories': '=Sheet1!$A$3:$A$109',
+                'values': '=Sheet1!$' + current_letter + '$3:$' + current_letter + '$109',
+            })
 
-        chart.set_title({'name': str(ch_letter) + ': L-curve'})
-        chart.set_x_axis({'name': "Residual's norm", 'min': min(residual_norms[channel].keys()) - reg_step[ch_letter]})
-        chart.set_y_axis({'name': "Solution's norm", 'min': min(solution_norms[channel].keys()) - reg_step[ch_letter]})
-        chart.set_legend({'none': True})
+        chart.set_title({'name': 'Sensitivity'})
+        chart.set_x_axis({'name': 'Wavelengths, nm', 'min': 360, 'max': 740})
+        chart.set_y_axis({'name': 'Spectral Response Function'})
+
         chart.set_style(15)
-        worksheet.insert_chart(chart_letter + '1', chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
+        worksheet.insert_chart('E1', chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
 
-    workbook.close()
+        start_letter = alphabet.index("R")
 
-    return reg_sensitivities
+        for channel in range(3):
+            ch_letter = channels[channel]
+            parameter_letter = alphabet[start_letter + channel * 16]
+            solution_letter = alphabet[start_letter + 1 + channel * 16]
+            residual_letter = alphabet[start_letter + 2 + channel * 16]
+            end_row = 2 + math.ceil((reg_stop[ch_letter] - reg_start[ch_letter])/reg_step[ch_letter])
+            chart_letter = alphabet[start_letter + 3 + channel * 16]
+        
+            worksheet.write(solution_letter + '1', ch_letter, bold)
+            worksheet.write(parameter_letter + '2', "Regularization parameter")
+            worksheet.write(solution_letter + '2', "Solution's norms")
+            worksheet.write(residual_letter + '2', "Residual's norms")
+        
+            for row_num, data in enumerate(np.arange(reg_start[ch_letter], reg_stop[ch_letter], reg_step[ch_letter])):
+                worksheet.write(row_num + 2, start_letter + channel * 16, data)
+            
+            for row_num, data in enumerate(solution_norms[channel].keys()):
+                worksheet.write(row_num + 2, start_letter + 1 + channel * 16, data)
+        
+            for row_num, data in enumerate(residual_norms[channel].keys()):
+                worksheet.write(row_num + 2, start_letter + 2 + channel * 16, data)
+            
+            chart = workbook.add_chart({'type': 'scatter', 'subtype': 'smooth'})
+        
+            chart.add_series({
+                'line':   {'width': 1.25, 'color': colors_RGB[channel]},
+                'categories': '=Sheet1!$' + residual_letter + '$3:$' + residual_letter + '$'+ str(end_row),
+                'values': '=Sheet1!$' + solution_letter + '$3:$' + solution_letter + '$' + str(end_row),
+            })
 
+            chart.set_title({'name': str(ch_letter) + ': L-curve'})
+            chart.set_x_axis({'name': "Residual's norm", 'min': min(residual_norms[channel].keys()) - reg_step[ch_letter]})
+            chart.set_y_axis({'name': "Solution's norm", 'min': min(solution_norms[channel].keys()) - reg_step[ch_letter]})
+            chart.set_legend({'none': True})
+            chart.set_style(15)
+            worksheet.insert_chart(chart_letter + '1', chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
+
+        workbook.close()
+    
+ 
 def get_lambda_grid(start, stop, points_number):
-    """[summary]
+    """ This function creates list of wavelengths
 
     Args:
-        start ([type]): [description]
-        stop ([type]): [description]
-        points_number ([type]): [description]
+        start (int)
+        stop (int)
+        points_number (int)
 
     Returns:
-        [type]: [description]
+        [list]: chosen wavelengths 
     """    
     step = (stop - start) / points_number
     return [start + point * step for point in range(points_number)]
 
-def measure_stimuli(patches_number, illuminants_number):
-    """[summary]
 
-    Args:
-        patches_number ([type]): [description]
-        illuminants_number ([type]): [description]
-
-    Returns:
-        [type]: [description]
-    """    
-    P = np.zeros(shape=(patches_number * illuminants_number, 3))
-    process  = DNGProcessingDemo()
-    illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC'][:illuminants_number]
-
-    for illuminant in illumination_types:
-        illuminant_index = illumination_types.index(illuminant)  
-        img_path = join(r"C:\Users\adm\Documents\IITP\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
-        json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
-
-        img = process(img_path)       
-        color_per_region = process_markup(json_path, img)
-        P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
-                        [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
-    return P
 
 ##########################
 
@@ -458,6 +408,30 @@ if __name__=='__main__':
             color_per_region[object['tags'][0]] = calc_mean_color(img, object['data'])
         return color_per_region
 
+    def measure_stimuli(patches_number, illuminants_number):
+        """ To do getting colors from ColorChecker
+
+         Args:
+            patches_number (int)
+            illuminants_number (int)
+
+        Returns:
+            P (np.ndarray): colors for all patches, patches_number x 3
+        """    
+        P = np.zeros(shape=(patches_number * illuminants_number, 3))
+        process  = DNGProcessingDemo()
+        illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC'][:illuminants_number]
+
+        for illuminant in illumination_types:
+            illuminant_index = illumination_types.index(illuminant)  
+            img_path = join(r"C:\Users\adm\Documents\IITP\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
+            json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
+
+            img = process(img_path)       
+            color_per_region = process_markup(json_path, img)
+            P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
+                            [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
+        return P
 
     def main():
         exceptions = set([])
