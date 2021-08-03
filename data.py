@@ -2,6 +2,7 @@ from typing import Dict, Tuple
 import pandas as pd
 import numpy as np
 
+### The following functions load data from Excel files
 
 def excl_read(excl_fname: str, **kwargs):
     return pd.read_excel(excl_fname, **kwargs)
@@ -20,9 +21,6 @@ def load_refl(excl_fname: str = 'babelcolor.xlsx', wavelengths_name='wavelength'
 
 def load_sens(excl_fname: str = 'canon600d.xlsx', wavelengths_name='wavelength'):
     return load_spectral_data(excl_fname, wavelengths_name)
-
-
-
 
 
 if __name__=='__main__':
