@@ -183,6 +183,29 @@ def get_lambda_grid(start, stop, points_number):
     step = (stop - start) / points_number
     return [start + point * step for point in range(points_number)]
 
+def draw_colorchecker(stimuli, patches_number, show=False):
+    carray = np.asarray([stimuli[i] for i in range(patches_number)])
+    carray = carray.reshape((6, 4, 3))
+    # carray = carray / carray.max()
+    plt.imshow(carray)
+    if show: plt.show()
+    return carray
+
+def draw_compared_colorcheckers(C, sensitivities, E_df, R, R_babelcolor, sensitivities_given, P):
+    draw_colorchecker(C @ sensitivities)
+    a_carray = draw_colorchecker(C_matrix(E_df, R) @ sensitivities_given)
+    b_carray = draw_colorchecker(C_matrix(E_df, R_babelcolor) @ sensitivities_given)
+    carray = draw_colorchecker(P)
+    tmp  = np.hstack([carray, np.zeros((6, 1, 3)), b_carray, np.zeros((6, 1, 3)), a_carray])
+    plt.imshow(tmp / tmp.max())
+    plt.show()  
+
+def easy_regularization(C, P, optimal_parameter, wavelengths):
+    reg_sensitivities = np.zeros(shape=(len(wavelengths), 3))
+    for channel in range(3):
+        reg_sensitivities[:,channel] = inv((C.T @ C).astype(float) + np.identity(len(wavelengths)) \
+            * optimal_parameter[channel]) @ C.T @ P[:,channel]
+    return reg_sensitivities
 
 if __name__=='__main__':    
     def do_nothing(img, meta): return img
