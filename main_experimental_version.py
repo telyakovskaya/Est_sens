@@ -240,34 +240,37 @@ def get_lambda_grid(start, stop, points_number):
 
 
 def measure_stimuli():
-    P = np.zeros(shape=(patches_number * illuminants_number, 3))
-    variances = np.zeros(shape=(patches_number * illuminants_number, 3))
+    exposures_number = 6
+    P = np.zeros(shape=(patches_number * illuminants_number, 3, exposures_number))
+    variances = np.zeros(shape=(patches_number * illuminants_number, 3, exposures_number))
+
     process  = DNGProcessingDemo()
     illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC'][:illuminants_number]
 
     for illuminant in illumination_types:
-        illuminant_index = illumination_types.index(illuminant)  
-        img_path = join(r"C:\Users\adm\Documents\IITP\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
-        json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
-
-        img = process(img_path).astype(np.float32)
-        # img_max = np.quantile(img, 0.99)
+        illuminant_index = illumination_types.index(illuminant)
+        json_path = r'C:\Users\adm\Documents\IITP\D50_targed\img_8333.jpg.json'
         
-        color_per_region, variance_per_region = process_markup(json_path, img)
+        for exp in range(exposures_number):
+            img_path = join(r"C:\Users\adm\Documents\IITP\dng_D50", "img_" + str(8332 + exp) + ".dng")
+            img = process(img_path).astype(np.float32)
+            color_per_region, variance_per_region = process_markup(json_path, img)
+            
+            P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number, : , exp] = \
+                [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
+            variances[patches_number * illuminant_index:patches_number * illuminant_index + patches_number, : , exp] = \
+                [variance_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
+        
+        # img_max = np.quantile(img, 0.99)
         # cc_keys = [str(i) for i in range(1, 25)]
         # return np.asarray([color_per_region[key] for key in cc_keys])
         # carray = carray.reshape((6, 4, 3))
         
         # plt.imshow(img / img_max)
         # plt.show()
-        # return carray / img_max
         # plt.imshow(carray / img_max)
         # plt.show()
 
-        P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
-                        [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
-        variances[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
-                        [variance_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
     return P, variances
 
 
@@ -287,9 +290,10 @@ def plot_spectra(spectras, show=False):
 
 
 def plot_sens(sens, sensitivities_gt, pattern='-', show=False):
+    sens /= sens.max()
     for i,c in enumerate('rgb'):
         plt.plot(wavelengths, sens[:, i], pattern, c=c)
-        # plt.plot(wavelengths, sensitivities_gt[:,i], '--', c=c)
+        plt.plot(wavelengths, sensitivities_gt[:,i], '--', c=c)
     if show: plt.show()
 
 
@@ -316,10 +320,11 @@ def draw_compared_colorcheckers(C, sensitivities, E_df, R, R_babelcolor):
 def plot_pictures(C, learning_sample, sensitivities_gt, simulated=False):
     if simulated:
         P_learning = C @ sensitivities_gt
-        noise = np.random.normal(0,.0001, P_learning.shape)
-        P_learning += noise
+        # noise = np.random.normal(0,.0001, P_learning.shape)
+        # P_learning += noise
     else:
         P, variances = measure_stimuli()
+        P = P[:, :, 3]
         P_learning = np.array([P[patch] for patch in learning_sample])
     
     sensitivities = inv((C.T @ C).astype(float)) @ C.T @ P_learning
@@ -329,7 +334,7 @@ def plot_pictures(C, learning_sample, sensitivities_gt, simulated=False):
 
 
 def check_stimuls_accuracy(P, variances):
-    # P /= P.max(axis=0)
+    # P /= P.max()
     # for channel in range(3): 
     #     mean_stimul = np.mean(P[:, channel])
     #     variance_stimuls = statistics.variance(P[:, channel])
@@ -337,13 +342,16 @@ def check_stimuls_accuracy(P, variances):
     #     sns.histplot(P[:, channel], kde=True).get_figure()
     #     plt.show()
 
-    # P /= P.max(axis=0)
-    for stimul in range(len(P)): 
-        for channel in range(3):
-            print(f'p: {stimul}, ch: {channel}, std(%): {variances[stimul, channel] / P[stimul, channel] * 100}')
+    # P /= P.max()
+    for channel in range(3):
+        for stimul in range(len(P)): 
+            for exposure in range(6):
+                print(f'p: {stimul}, ch: {channel}, exp: {exposure}, std(%): \
+                    {variances[stimul, channel, exposure] / P[stimul, channel, exposure] * 100}')
+            print()
             
 
-def regularization(reg_start, reg_stop, C, P_learning):
+def regularization(C, P_learning, reg_start = {"red": 0.05, "green": 0.05, "blue": 0.05}, reg_stop = {"red": 5, "green": 5, "blue": 5}):
     def menger(p1, p2, p3):
         residual1, solution1 = p1
         residual2, solution2 = p2
@@ -359,9 +367,9 @@ def regularization(reg_start, reg_stop, C, P_learning):
     def l_curve_P(reg_parameter, channel):
         C_T = np.transpose(C)
         sensitivities[:,channel] = inv((C_T @ C).astype(float) + np.identity(len(wavelengths)) * reg_parameter) @ C_T @ P_learning[:,channel]
-        solution = ((np.linalg.norm(sensitivities[:,channel], 2))) ** 2
-        residual_vector = C @ sensitivities[:,channel] - P_learning[:,channel]
-        residual = ((np.linalg.norm(residual_vector, 2))) ** 2
+        solution = (np.linalg.norm(sensitivities[:,channel], 2) ** 2) 
+        residual_vector = C @ sensitivities[:, channel] - P_learning[:,channel]
+        residual = (np.linalg.norm(residual_vector, 2) ** 2) 
         return residual, solution
 
 
@@ -466,25 +474,25 @@ spectras_internet = spectras_matrix(E_df, R_internet)
 P_measured, variances = measure_stimuli()
 P_gt = spectras_Alexander @ sensitivities_gt
 
-# print(np.concatenate((P_measured / P_measured.max(axis=0), P_gt / P_gt.max(axis=0)), axis=1))
+P_measured = P_measured[:, :, 3]
+
 # check_stimuls_accuracy(P_measured, variances)
-
-
-# optimal_parameter = [0.5067055579111499, 0.6430519533349813, 0.4257159707254087]
-# reg_sensitivities = easy_regularization(spectras_Alexander, P_measured, optimal_parameter)
 
 
 P_learning = np.array([P_measured[patch] for patch in learning_sample])
 sensitivities = inv((spectras_Alexander.T @ spectras_Alexander).astype(float)) @ spectras_Alexander.T @ P_learning
 
-reg_start = {"red": 0.05, "green": 0.05, "blue": 0.05}
-reg_stop = {"red": 5, "green": 5, "blue": 5}
-reg_sensitivities = regularization(reg_start, reg_stop, spectras_Alexander, P_learning)
+# reg_sensitivities = regularization(reg_start, reg_stop, spectras_Alexander, P_learning)
 
 plot_pictures(spectras_Alexander, learning_sample, sensitivities_gt, simulated=False)
-plot_sens(reg_sensitivities, sensitivities_gt, show=True)
+# plot_sens(reg_sensitivities, sensitivities_gt, show=True)
+
 
 # write_to_excel('Sensitivities.xlsx', sensitivities, learning_sample)
+
+
+# optimal_parameter = [0.5067055579111499, 0.6430519533349813, 0.4257159707254087]
+# reg_sensitivities = easy_regularization(spectras_Alexander, P_measured, optimal_parameter)
 
 
 # The number of points in lambda grid shouldn't exceed the length of the learning sample.
