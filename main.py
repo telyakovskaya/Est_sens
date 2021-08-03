@@ -256,10 +256,11 @@ if __name__=='__main__':
         return region_color.tolist()
 
     class SensEstimator:
-        def __init__(self, reg_start, reg_stop, threshold_stop):
+        def __init__(self, reg_start, reg_stop, threshold_stop, reg_step):
             self.reg_start = reg_start
             self.reg_stop = reg_stop
             self.threshold_stop = threshold_stop
+            self.reg_step = reg_step
 
         def menger(self, p1, p2, p3):
             residual1, solution1 = p1
@@ -329,7 +330,7 @@ if __name__=='__main__':
             return optimal_parameter
 
 
-        def estimate(self, reg_start, reg_stop, reg_step, sensitivities, C, P_learning, channels):
+        def estimate(self, sensitivities, C, P_learning, channels):
             C_T = np.transpose(C)
             optimal_parameter = self.find_optimal_parameter()
             reg_sensitivities = np.zeros(shape=(107, 3))
@@ -338,15 +339,15 @@ if __name__=='__main__':
             for channel in range(3):
                 ch_letter = channels[channel]
         
-                for reg_parameter in np.arange(reg_start[ch_letter], reg_stop[ch_letter], reg_step[ch_letter]):
-                residual, solution = self.l_curve_P(reg_parameter, channel, C, sensitivities, P_learning)
-                solution_norms[channel][solution] = reg_parameter
-                residual_norms[channel][residual] = reg_parameter
+                for reg_parameter in np.arange(self.reg_start[ch_letter], self.reg_stop[ch_letter], self.reg_step[ch_letter]):
+                    residual, solution = self.l_curve_P(reg_parameter, channel, C, sensitivities, P_learning)
+                    solution_norms[channel][solution] = reg_parameter
+                    residual_norms[channel][residual] = reg_parameter
                 
                 reg_sensitivities[:,channel] = inv((C_T @ C).astype(float) + np.identity(107) * optimal_parameter[channel]) @ C_T @ P_learning[:,channel]
             return reg_sensitivities
      
-        def write_to_excel(self, E):
+        def write_to_excel(self, E, sensitivities, channels, solution_norms, residual_norms):
             alphabet_st = list(string.ascii_uppercase)
             alphabet = alphabet_st + ['A' + letter for letter in alphabet_st] + ['B' + letter for letter in alphabet_st]
             colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
@@ -390,7 +391,7 @@ if __name__=='__main__':
                 parameter_letter = alphabet[start_letter + channel * 16]
                 solution_letter = alphabet[start_letter + 1 + channel * 16]
                 residual_letter = alphabet[start_letter + 2 + channel * 16]
-                end_row = 2 + math.ceil((reg_stop[ch_letter] - reg_start[ch_letter])/reg_step[ch_letter])
+                end_row = 2 + math.ceil((self.reg_stop[ch_letter] - self.reg_start[ch_letter])/self.reg_step[ch_letter])
                 chart_letter = alphabet[start_letter + 3 + channel * 16]
         
                 worksheet.write(solution_letter + '1', ch_letter, bold)
@@ -398,7 +399,7 @@ if __name__=='__main__':
                 worksheet.write(solution_letter + '2', "Solution's norms")
                 worksheet.write(residual_letter + '2', "Residual's norms")
         
-                for row_num, data in enumerate(np.arange(reg_start[ch_letter], reg_stop[ch_letter], reg_step[ch_letter])):
+                for row_num, data in enumerate(np.arange(self.reg_start[ch_letter], self.reg_stop[ch_letter], self.reg_step[ch_letter])):
                     worksheet.write(row_num + 2, start_letter + channel * 16, data)
             
                 for row_num, data in enumerate(solution_norms[channel].keys()):
@@ -416,8 +417,8 @@ if __name__=='__main__':
                 })
 
                 chart.set_title({'name': str(ch_letter) + ': L-curve'})
-                chart.set_x_axis({'name': "Residual's norm", 'min': min(residual_norms[channel].keys()) - reg_step[ch_letter]})
-                chart.set_y_axis({'name': "Solution's norm", 'min': min(solution_norms[channel].keys()) - reg_step[ch_letter]})
+                chart.set_x_axis({'name': "Residual's norm", 'min': min(residual_norms[channel].keys()) - self.reg_step[ch_letter]})
+                chart.set_y_axis({'name': "Solution's norm", 'min': min(solution_norms[channel].keys()) - self.reg_step[ch_letter]})
                 chart.set_legend({'none': True})
                 chart.set_style(15)
                 worksheet.insert_chart(chart_letter + '1', chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
