@@ -12,12 +12,11 @@ from raw_prc_pipeline.pipeline import PipelineExecutor, RawProcessingPipelineDem
 from raw_prc_pipeline.pipeline_utils import get_visible_raw_image, get_metadata
 import math
 import random
-import statistics
-import seaborn as sns
-from sim import simulate_stimuls, estimate_sensitivities
-from plot import plot_sens, plot_spectra
-from sim import change_wavelengths
+from model import simulate_stimuls, change_wavelengths, C_matrix
+from plot import plot_sens, plot_spectra, plot_chart
+from model import change_wavelengths
 from data import load_illums, load_refl, load_sens
+from errors import check_errors
 
 # def choose_learning_sample(valid, achromatic_single, ratio=0.8):
 #     chromatic_learning_sample = []
@@ -34,89 +33,7 @@ from data import load_illums, load_refl, load_sens
 #     return learning_sample, patches
 
 
-def C_matrix(sample, E, R, patches_number):
-    """"
-    This function calculates matrix C
-    Args:
-        sample (list): choosed pathes for learning
-        E (np.ndarray): s x k, s-number of illuminations
-        R (np.ndarray): n x k, k-number of wavelengths
-        patches_number (int): actually, number of patches = n
-
-    Returns:
-        [np.ndarray]: (sn) x k
-    """    
-    C = np.zeros(shape=(len(sample), E.shape[1]))
-    C_current_index = 0
-    E = np.transpose(E)
-    for illuminant_index in range(E.shape[-1]):
-        e_diag = np.diag(E[:,illuminant_index])
-        R_current = np.array([R[patch % patches_number] for patch in sample 
-                    if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number])
-        C[C_current_index:C_current_index + len(R_current)] = np.transpose(np.matmul(e_diag, np.transpose(R_current)))
-        C_current_index += len(R_current)
-    return C
-
-def check_accuracy(patches_number, stimulus_predicted, stimulus_genuine):
-    """
-
-    Args:
-        patches_number (int): actually, number of patches
-        stimulus_predicted (two-dimensional list): total number of patches x 3
-        stimulus_genuine (two-dimensional list): total number of patches x 3
-
-    Returns:
-        mean_angle[float]: average value of angles between vectors
-        variance_angles[float]: variance of angles
-        angles_fig[]: histogram for angles
-        mean_norm[float]: average value of vector lengths
-        variance_norms[float]: variance of vector lengths
-        norms_fig[]: histogram for vector lengths
-    """    
-
-    angles = []
-    norms = []
-
-    for i in range(patches_number):
-        predicted_stimulus = stimulus_predicted[i]
-        unit_predicted_stimulus = predicted_stimulus / np.linalg.norm(predicted_stimulus)
-        genuine_stimulus = stimulus_genuine[i]
-        print(predicted_stimulus, genuine_stimulus)
-        unit_genuine_stimulus = genuine_stimulus / np.linalg.norm(genuine_stimulus)
-        dot_product = np.dot(unit_predicted_stimulus, unit_genuine_stimulus)
-        angles.append(np.arccos(dot_product) * 180 / 3.1415)
-        norms.append(np.linalg.norm(predicted_stimulus - genuine_stimulus, 2))
-
-
-    mean_angle = sum(angles) / patches_number
-    variance_angles = statistics.variance(angles)
-    angles_fig = sns.histplot(angles).get_figure()
-
-    mean_norm = np.mean(norms)
-    variance_norms = statistics.variance(norms)
-    norms_fig = sns.histplot(norms).get_figure()
-
-    return mean_angle, variance_angles, angles_fig, mean_norm, variance_norms, norms_fig
-
-def draw_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, values_coord, chart_coord, data_series, colors):
-    """This function is auxiliary for plotting graphs
-
-    """    
-    chart = workbook.add_chart({'type': 'scatter', 'subtype': 'smooth'})
-    for plot in data_series:
-        chart.add_series({
-            'name': str(plot),
-            'line':   {'width': 1.25, 'color': colors[plot]},
-            'categories': categories_coord,
-            'values': values_coord[data_series.index(plot)],
-        })
-
-    chart.set_title({'name': title})
-    chart.set_x_axis(x_axis)
-    chart.set_y_axis(y_axis)
-
-    chart.set_style(15)
-    worksheet.insert_chart(chart_coord, chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
+###typing!!!description
 
 def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channels):
     """This function builds graphs in Excel
@@ -151,7 +68,7 @@ def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channe
     for channel in range(3):
         value_letter = alphabet[alphabet.index('B') + channel]
         sensitivities_values_coord.append('=Sheet1!$' + value_letter + '$3:$' + value_letter + '$109') 
-    draw_chart(workbook, worksheet_1, 'Sensitivities', sensitivities_x_axis, sensitivities_y_axis, \
+    plot_chart(workbook, worksheet_1, 'Sensitivities', sensitivities_x_axis, sensitivities_y_axis, \
         '=Sheet1!$A$3:$A$109', sensitivities_values_coord, 'F1', channels, colors_RGB)
 
     patches_x_axis = {'name': 'Wavelengths, nm', 'min': wavelengths[0], 'max': wavelengths[-1]}
@@ -164,7 +81,7 @@ def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channe
     # colors_patches = [cmap(i) for i in range(cmap.N)] 
     colors_patches = {i:'blue' for i in learning_sample}
     print(colors_patches)
-    draw_chart(workbook, worksheet_1, "Patches' reflectance", patches_x_axis, patches_y_axis, \
+    plot_chart(workbook, worksheet_1, "Patches' reflectance", patches_x_axis, patches_y_axis, \
         '=Sheet2!$A$3:$A$109', patches_values_coord, 'F26', learning_sample, colors_patches)
     
     workbook.close()
@@ -207,78 +124,25 @@ def easy_regularization(C, P, optimal_parameter, wavelengths):
             * optimal_parameter[channel]) @ C.T @ P[:,channel]
     return reg_sensitivities
 
-if __name__=='__main__':    
-    def do_nothing(img, meta): return img
-    
+def estimate_sensitivities(spectras: np.ndarray, stimulus: np.ndarray) -> np.ndarray:
+    """This function calculates sensitivities
 
-    class DNGProcessingDemo():
-        def __init__(self, tone_mapping=1, denoising_flg=1):
-            self.pipeline_demo = RawProcessingPipelineDemo(
-                denoise_flg=denoising_flg, tone_mapping=tone_mapping)
-            self.pipeline_demo.tone_mapping = do_nothing
-            self.pipeline_demo.autocontrast = lambda img, meta: img/np.max(img)
+    Args:
+        spectras (np.ndarray): 
+            n x k
+        stimulus (np.ndarray): 
+            k x 3
 
-    
-        def __call__(self, img_path: Path):
-            raw_image = get_visible_raw_image(str(img_path))
-            
-            metadata = get_metadata(str(img_path))
-    
-            pipeline_exec = PipelineExecutor(
-                    raw_image, metadata, self.pipeline_demo, last_stage='demosaic')
-            
-            return pipeline_exec()
-    
-    def process_markup(json_path, img):
-        with open(json_path, 'r') as file:
-            markup_json = json.load(file)
+    Returns:
+        np.ndarray: 
+            n x 3
+    """
+    H = inv((spectras @ spectras.T).astype(float)) @ spectras
+    assert H.shape == (spectras.shape[0], stimulus.shape[0])
+    sensitivities =  H @ stimulus
+    return sensitivities
 
-        color_per_region = {}
-        for object in markup_json['objects']:
-            color_per_region[object['tags'][0]] = calc_mean_color(img, object['data'])
-        return color_per_region
-
-    def measure_stimuli(patches_number, illuminants_number):
-        """ To do getting colors from ColorChecker
-
-         Args:
-            patches_number (int)
-            illuminants_number (int)
-
-        Returns:
-            P (np.ndarray): colors for all patches, patches_number x 3
-        """    
-        P = np.zeros(shape=(patches_number * illuminants_number, 3))
-        process  = DNGProcessingDemo()
-        illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC'][:illuminants_number]
-
-        for illuminant in illumination_types:
-            illuminant_index = illumination_types.index(illuminant)  
-            img_path = join(r"C:\Users\adm\Documents\IITP\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
-            json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
-
-            img = process(img_path)       
-            color_per_region = process_markup(json_path, img)
-            P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
-                            [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
-        return P
-    
-    def calc_mean_color(img, points):
-        '''
-        Args:
-            img(np.array): img with int values
-            points(list): list of regions coords
-        '''
-        points = np.array(points)
-        mask = np.zeros([img.shape[0], img.shape[1]], dtype=int)
-        y, x = draw.polygon(points[:,1], points[:,0], shape=img.shape)    # Generate coordinates of pixels within polygon
-        mask[y, x] = 1
-        pixels = img[mask == 1]
-        region_color = pixels.mean(axis=0).astype(img.dtype)
-
-        return region_color.tolist()
-
-    class SensEstimator:
+class SensEstimator:
         def __init__(self, reg_start, reg_stop, threshold_stop, reg_step):
             self.reg_start = reg_start
             self.reg_stop = reg_stop
@@ -449,6 +313,73 @@ if __name__=='__main__':
             workbook.close()
 
 
+if __name__=='__main__':    
+    
+    #DNGreader and description
+    class DNGPreader():
+        def __init__(self, tone_mapping=1, denoising_flg=1):
+            self.pipeline_demo = RawProcessingPipelineDemo(
+                denoise_flg=denoising_flg, tone_mapping=tone_mapping)
+
+    
+        def __call__(self, img_path: Path):
+            raw_image = get_visible_raw_image(str(img_path))
+            
+            metadata = get_metadata(str(img_path))
+    
+            pipeline_exec = PipelineExecutor(
+                    raw_image, metadata, self.pipeline_demo, last_stage='demosaic')
+            
+            return pipeline_exec()
+    
+    def process_markup(json_path, img):
+        with open(json_path, 'r') as file:
+            markup_json = json.load(file)
+
+        color_per_region = {}
+        for object in markup_json['objects']:
+            color_per_region[object['tags'][0]] = calc_mean_color(img, object['data'])
+        return color_per_region
+
+    def measure_stimuli(patches_number, illuminants_number):
+        """ To do getting colors from ColorChecker
+
+         Args:
+            patches_number (int)
+            illuminants_number (int)
+
+        Returns:
+            P (np.ndarray): colors for all patches, patches_number x 3
+        """    
+        P = np.zeros(shape=(patches_number * illuminants_number, 3))
+        process  = DNGPreader()
+        illumination_types = ['D50', 'D50+CC1', 'D50+OC6', 'LED', 'LUM', 'INC'][:illuminants_number]
+
+        for illuminant in illumination_types:
+            illuminant_index = illumination_types.index(illuminant)  
+            img_path = join(r"C:\Users\adm\Documents\IITP\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
+            json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
+
+            img = process(img_path)       
+            color_per_region = process_markup(json_path, img)
+            P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number] = \
+                            [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
+        return P
+    
+    def calc_mean_color(img, points):
+        '''
+        Args:
+            img(np.array): img with int values
+            points(list): list of regions coords
+        '''
+        points = np.array(points)
+        mask = np.zeros([img.shape[0], img.shape[1]], dtype=int)
+        y, x = draw.polygon(points[:,1], points[:,0], shape=img.shape)    # Generate coordinates of pixels within polygon
+        mask[y, x] = 1
+        pixels = img[mask == 1]
+        region_color = pixels.mean(axis=0).astype(img.dtype)
+
+        return region_color.tolist()
     
     def main():
         exceptions = set([])
@@ -467,23 +398,12 @@ if __name__=='__main__':
         illuminants_number = len(E_dict)
         patches_number = len(R_dict)
         
-        choosed_patches_number = patches_number                  # how many patches to use 
+        choosed_patches_number = patches_number                  
         valid = set(range(patches_number * illuminants_number)) - exceptions
         achromatic_single = list(range(14)) + [patch for patch in range(14, 126) if patch % 14 == 0 or patch % 14 == 13] + list(range(126, 140)) + \
                 list(range(60, 66)) + list(range(74, 80))
         # learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
-        learning_sample = [i for i in range(patches_number * illuminants_number)]
-        #print(len(learning_sample))     
-        # C = np.zeros(shape=(len(learning_sample), len(E)))
-        # C_current_index = 0
-        # for illuminant_index in range(6):
-        #     E = np.diag(E_df[str(1 + illuminant_index) + 'Norm'])
-        #     R_learning = [R[patch % 24] for patch in learning_sample if illuminant_index * 24 <= patch < illuminant_index * 24 + 24]
-        #     C[C_current_index:C_current_index + len(R_learning)] = np.transpose(np.matmul(E, np.transpose(R_learning)))
-        #     C_current_index += len(R_learning)
-
-        # E = np.ones((33, 1))
-        
+        learning_sample = [i for i in range(patches_number * illuminants_number)]            
         C = C_matrix(learning_sample, E, R, patches_number)
         C_T = np.transpose(C)
     
@@ -505,7 +425,6 @@ if __name__=='__main__':
 
             plot_spectra(C_T[:,:stop], True)
             
-        # print(np.concatenate((sensitivities_given, sensitivities), axis=1))
         R_learning = []
         for illuminant_index in range(illuminants_number):
                 R_learning += [R[patch % patches_number] for patch in learning_sample 

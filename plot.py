@@ -15,7 +15,27 @@ def plot_spectra(spectras, show=False):
         plt.plot(wavelengths, spectras[:, i], '--')
     if show: plt.show()
 
-def visualization(nslices: int, tips: list):
+def plot_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, values_coord, chart_coord, data_series, colors):
+    """This function is auxiliary for plotting graphs
+
+    """    
+    chart = workbook.add_chart({'type': 'scatter', 'subtype': 'smooth'})
+    for plot in data_series:
+        chart.add_series({
+            'name': str(plot),
+            'line':   {'width': 1.25, 'color': colors[plot]},
+            'categories': categories_coord,
+            'values': values_coord[data_series.index(plot)],
+        })
+
+    chart.set_title({'name': title})
+    chart.set_x_axis(x_axis)
+    chart.set_y_axis(y_axis)
+
+    chart.set_style(15)
+    worksheet.insert_chart(chart_coord, chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
+
+def error_heatmap(nslices: int, tips: list):
     """
     This function builds heatmap to visualize accuracy usings learning and test samples
     Args:
