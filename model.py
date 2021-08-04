@@ -38,7 +38,7 @@ def simulate_stimuls(sensitivities_given: np.ndarray, spectras: np.ndarray) -> n
     return stimulus_learning
 
 #rename C_matrix and add asserts
-def C_matrix(sample, E, R, patches_number):
+def radiance_matrix(sample, E, R, patches_number):
     """"
     This function calculates matrix C
     Args:
@@ -50,14 +50,13 @@ def C_matrix(sample, E, R, patches_number):
     Returns:
         [np.ndarray]: (sn) x k
     """    
-    C = np.zeros(shape=(len(sample), E.shape[1]))
-    C_current_index = 0
+    radiance = np.zeros(shape=(len(sample), E.shape[1]))
+    radiance_current_index = 0
     E = np.transpose(E)
     for illuminant_index in range(E.shape[-1]):
         e_diag = np.diag(E[:,illuminant_index])
         R_current = np.array([R[patch % patches_number] for patch in sample 
                     if illuminant_index * patches_number <= patch < illuminant_index * patches_number + patches_number])
-        C[C_current_index:C_current_index + len(R_current)] = np.transpose(np.matmul(e_diag, np.transpose(R_current)))
-        C_current_index += len(R_current)
-    #return radiance
-    return C
+        radiance[radiance_current_index:radiance_current_index + len(R_current)] = np.transpose(np.matmul(e_diag, np.transpose(R_current)))
+        radiance_current_index += len(R_current)
+    return radiance

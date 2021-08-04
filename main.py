@@ -12,7 +12,7 @@ from raw_prc_pipeline.pipeline import PipelineExecutor, RawProcessingPipelineDem
 from raw_prc_pipeline.pipeline_utils import get_visible_raw_image, get_metadata
 import math
 import random
-from model import simulate_stimuls, change_wavelengths, C_matrix
+from model import simulate_stimuls, change_wavelengths, radiance_matrix
 from plot import plot_sens, plot_spectra, plot_chart
 from model import change_wavelengths
 from data import load_illums, load_refl, load_sens
@@ -108,27 +108,27 @@ def draw_colorchecker(stimuli, patches_number, show=False):
     if show: plt.show()
     return carray
 
-def draw_compared_colorcheckers(C, sensitivities, E_df, R, R_babelcolor, sensitivities_given, P):
-    draw_colorchecker(C @ sensitivities)
-    a_carray = draw_colorchecker(C_matrix(E_df, R) @ sensitivities_given)
-    b_carray = draw_colorchecker(C_matrix(E_df, R_babelcolor) @ sensitivities_given)
+def draw_compared_colorcheckers(radiance, sensitivities, E_df, R, R_babelcolor, sensitivities_given, P):
+    draw_colorchecker(radiance @ sensitivities)
+    a_carray = draw_colorchecker(radiance_matrix(E_df, R) @ sensitivities_given)
+    b_carray = draw_colorchecker(radiance_matrix(E_df, R_babelcolor) @ sensitivities_given)
     carray = draw_colorchecker(P)
     tmp  = np.hstack([carray, np.zeros((6, 1, 3)), b_carray, np.zeros((6, 1, 3)), a_carray])
     plt.imshow(tmp / tmp.max())
     plt.show()  
 
-def easy_regularization(C, P, optimal_parameter, wavelengths):
+def easy_regularization(radiance, P, optimal_parameter, wavelengths):
     reg_sensitivities = np.zeros(shape=(len(wavelengths), 3))
     for channel in range(3):
-        reg_sensitivities[:,channel] = inv((C.T @ C).astype(float) + np.identity(len(wavelengths)) \
-            * optimal_parameter[channel]) @ C.T @ P[:,channel]
+        reg_sensitivities[:,channel] = inv((radiance.T @ radiance).astype(float) + np.identity(len(wavelengths)) \
+            * optimal_parameter[channel]) @ radiance.T @ P[:,channel]
     return reg_sensitivities
 
-def estimate_sensitivities(spectras: np.ndarray, stimulus: np.ndarray) -> np.ndarray:
+def estimate_sensitivities(radiance: np.ndarray, stimulus: np.ndarray) -> np.ndarray:
     """This function calculates sensitivities
 
     Args:
-        spectras (np.ndarray): 
+        radiance (np.ndarray): 
             n x k
         stimulus (np.ndarray): 
             k x 3
@@ -137,8 +137,8 @@ def estimate_sensitivities(spectras: np.ndarray, stimulus: np.ndarray) -> np.nda
         np.ndarray: 
             n x 3
     """
-    H = inv((spectras @ spectras.T).astype(float)) @ spectras
-    assert H.shape == (spectras.shape[0], stimulus.shape[0])
+    H = inv((radiance @ radiance.T).astype(float)) @ radiance
+    assert H.shape == (radiance.shape[0], stimulus.shape[0])
     sensitivities =  H @ stimulus
     return sensitivities
 
@@ -315,7 +315,7 @@ class SensEstimator:
 
 if __name__=='__main__':    
     
-    #DNGreader and description
+    #description
     class DNGPreader():
         def __init__(self, tone_mapping=1, denoising_flg=1):
             self.pipeline_demo = RawProcessingPipelineDemo(
@@ -404,7 +404,7 @@ if __name__=='__main__':
                 list(range(60, 66)) + list(range(74, 80))
         # learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
         learning_sample = [i for i in range(patches_number * illuminants_number)]            
-        C = C_matrix(learning_sample, E, R, patches_number)
+        C = radiance_matrix(learning_sample, E, R, patches_number)
         C_T = np.transpose(C)
     
         sensitivities_given_dict, sens_wavelengths = load_sens()
