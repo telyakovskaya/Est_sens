@@ -36,10 +36,19 @@ def get_image_ifds(image_path):
     return ifds
 
 
+
+
+
 def get_metadata(image_path):
     metadata = {}
     tags = get_image_tags(image_path)
     ifds = get_image_ifds(image_path)
+    
+    metadata['iso'] = get_iso(tags, ifds)[0]
+    metadata['exp'] = get_exp(tags, ifds)[0]
+    
+    metadata['exp'] = float(metadata['exp'].num) / metadata['exp'].den
+    
     metadata['linearization_table'] = get_linearization_table(tags, ifds)
     metadata['black_level'] = get_black_level(tags, ifds)
     metadata['white_level'] = get_white_level(tags, ifds)
@@ -76,6 +85,18 @@ def get_metadata(image_path):
         print("Orientation is None; using 0.")
     # ...
     return metadata
+
+
+
+def get_exp(tags, ifds):
+    possible_keys = ['EXIF ExposureTime']
+    return get_values(tags, possible_keys)
+
+
+def get_iso(tags, ifds):
+    possible_keys = ['EXIF ISOSpeedRatings']
+    return get_values(tags, possible_keys)
+
 
 
 def get_linearization_table(tags, ifds):

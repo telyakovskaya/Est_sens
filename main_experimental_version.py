@@ -9,7 +9,7 @@ import cv2                      # pip install opencv-python
 from skimage import draw
 from pathlib import Path
 from raw_prc_pipeline.pipeline import PipelineExecutor, RawProcessingPipelineDemo
-from raw_prc_pipeline.pipeline_utils import get_visible_raw_image, get_metadata
+from raw_prc_pipeline.pipeline_utils import get_visible_raw_image, get_metadata, normalize, simple_demosaic
 import math
 import random
 import statistics
@@ -18,16 +18,24 @@ from scipy import interpolate
 
 global channels, alphabet, colors_RGB, illuminants_number, patches_number, choosed_patches_number, wavelengths
 
-def do_nothing(img, meta): return img
- 
+
+class SimpleRawProcessing:
+    # Linearization not handled.
+    def linearize_raw(self, raw_img, img_meta):
+        return raw_img
+
+    def normalize(self, linearized_raw, img_meta):
+        norm = normalize(linearized_raw, img_meta['black_level'], img_meta['white_level'])
+        return np.clip(norm , 0, 1)
+
+    def demosaic(self, normalized, img_meta):
+        return simple_demosaic(normalized, img_meta['cfa_pattern'])
+
+
 
 class DNGProcessingDemo():
-    def __init__(self, tone_mapping=False, denoising_flg=False):
-        self.pipeline_demo = RawProcessingPipelineDemo(
-            denoise_flg=denoising_flg, tone_mapping=tone_mapping)
-        self.pipeline_demo.tone_mapping = do_nothing
-        self.pipeline_demo.autocontrast = lambda img, meta: img/np.max(img)
-
+    def __init__(self):
+        self.pipeline_demo = SimpleRawProcessing()
  
     def __call__(self, img_path: Path):
         raw_image = get_visible_raw_image(str(img_path))
@@ -36,7 +44,7 @@ class DNGProcessingDemo():
         metadata['cfa_pattern'] = [1,2,0,1]
  
         pipeline_exec = PipelineExecutor(
-                raw_image, metadata, self.pipeline_demo, last_stage='demosaic')
+                raw_image, metadata, self.pipeline_demo)
         
         return pipeline_exec()
 
@@ -249,29 +257,49 @@ def measure_stimuli():
 
     for illuminant in illumination_types:
         illuminant_index = illumination_types.index(illuminant)
-        json_path = r'C:\Users\adm\Documents\IITP\D50_targed\img_8333.jpg.json'
         
         for exp in range(exposures_number):
             img_path = join(r"C:\Users\adm\Documents\IITP\dng_D50", "img_" + str(8332 + exp) + ".dng")
+            json_path = join(r"C:\Users\adm\Documents\IITP\D50_targed", "img_" + str(8332 + exp) + ".jpg.json")
             img = process(img_path).astype(np.float32)
+            
             color_per_region, variance_per_region = process_markup(json_path, img)
+
+
+            # img_max = np.quantile(img, 0.99)
+            # cc_keys = [str(i) for i in range(1, 25)]
+            # carray = np.asarray([color_per_region[key] for key in cc_keys])
+            # carray = carray.reshape((6, 4, 3))
+            # plt.imshow(img / img_max)
+            # plt.show()
+            # plt.imshow(carray / img_max)
+            # plt.show()
             
             P[patches_number * illuminant_index:patches_number * illuminant_index + patches_number, : , exp] = \
                 [color_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
             variances[patches_number * illuminant_index:patches_number * illuminant_index + patches_number, : , exp] = \
                 [variance_per_region[str(patch_index + 1)] for patch_index in range(patches_number)]
-        
-        # img_max = np.quantile(img, 0.99)
-        # cc_keys = [str(i) for i in range(1, 25)]
-        # return np.asarray([color_per_region[key] for key in cc_keys])
-        # carray = carray.reshape((6, 4, 3))
-        
-        # plt.imshow(img / img_max)
-        # plt.show()
-        # plt.imshow(carray / img_max)
-        # plt.show()
-
     return P, variances
+
+
+def choose_best_stimuls(P, variances):
+    variances_procent = np.zeros(shape=(patches_number * illuminants_number, 3, 6))
+    for channel in range(3):
+        for stimul in range(len(P)): 
+            for exposure in range(6):
+                variances_procent[stimul, channel, exposure] = \
+                    variances[stimul, channel, exposure] / P[stimul, channel, exposure] * 100
+   
+    P_best = np.full(shape=(patches_number * illuminants_number, 3), fill_value=1.)
+    variances_best = np.full(shape=(patches_number * illuminants_number, 3), fill_value=101.)
+
+    for channel in range(3):
+        for stimul in range(len(P)): 
+            for exposure in range(6):
+                if P[stimul, channel, exposure] <= 0.99 and variances_procent[stimul, channel, exposure] < variances_best[stimul, channel]:
+                     P_best[stimul, channel] = P[stimul, channel, exposure]
+                     variances_best[stimul, channel] = variances_procent[stimul, channel, exposure]
+    return P_best, variances_best
 
 
 def draw_colorchecker(stimuli, show=False):
@@ -324,7 +352,8 @@ def plot_pictures(C, learning_sample, sensitivities_gt, simulated=False):
         # P_learning += noise
     else:
         P, variances = measure_stimuli()
-        P = P[:, :, 3]
+        # P, variances = choose_best_stimuls(P, variances)
+        P = P[:,:, 3]
         P_learning = np.array([P[patch] for patch in learning_sample])
     
     sensitivities = inv((C.T @ C).astype(float)) @ C.T @ P_learning
@@ -343,12 +372,18 @@ def check_stimuls_accuracy(P, variances):
     #     plt.show()
 
     # P /= P.max()
+
+    # for channel in range(3):
+    #     for stimul in range(len(P)): 
+    #         for exposure in range(6):
+    #             print(f'p: {stimul}, ch: {channel}, exp: {exposure}, std(%): \
+    #                 {variances[stimul, channel, exposure] / P[stimul, channel, exposure] * 100}')
+    #         print()
+
     for channel in range(3):
         for stimul in range(len(P)): 
-            for exposure in range(6):
-                print(f'p: {stimul}, ch: {channel}, exp: {exposure}, std(%): \
-                    {variances[stimul, channel, exposure] / P[stimul, channel, exposure] * 100}')
-            print()
+            print(f'p: {stimul}, ch: {channel}, std(%): \
+                    {variances[stimul, channel]}')
             
 
 def regularization(C, P_learning, reg_start = {"red": 0.05, "green": 0.05, "blue": 0.05}, reg_stop = {"red": 5, "green": 5, "blue": 5}):
@@ -474,22 +509,35 @@ spectras_internet = spectras_matrix(E_df, R_internet)
 P_measured, variances = measure_stimuli()
 P_gt = spectras_Alexander @ sensitivities_gt
 
-P_measured = P_measured[:, :, 3]
+norm_val = np.max(P_measured[-1], axis=0)
+P_measured /= norm_val
+variances /= norm_val
+
+
+
+# for i in range(6):
+#     print(P_measured[:,:, i])
+#     draw_colorchecker(P_measured[:,:, i], show=True)
+
+# P_measured, variances = choose_best_stimuls(P_measured, variances)
+# print(P_measured)
+# draw_colorchecker(P_measured, show=True)
 
 # check_stimuls_accuracy(P_measured, variances)
 
-
+P_measured = P_measured[:,:, 3]
 P_learning = np.array([P_measured[patch] for patch in learning_sample])
 sensitivities = inv((spectras_Alexander.T @ spectras_Alexander).astype(float)) @ spectras_Alexander.T @ P_learning
 
-# reg_sensitivities = regularization(reg_start, reg_stop, spectras_Alexander, P_learning)
+reg_sensitivities = regularization(spectras_Alexander, P_learning)
 
 plot_pictures(spectras_Alexander, learning_sample, sensitivities_gt, simulated=False)
-# plot_sens(reg_sensitivities, sensitivities_gt, show=True)
+plot_sens(reg_sensitivities, sensitivities_gt, show=True)
 
+
+###############################
 
 # write_to_excel('Sensitivities.xlsx', sensitivities, learning_sample)
-
 
 # optimal_parameter = [0.5067055579111499, 0.6430519533349813, 0.4257159707254087]
 # reg_sensitivities = easy_regularization(spectras_Alexander, P_measured, optimal_parameter)

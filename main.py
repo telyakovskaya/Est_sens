@@ -183,8 +183,8 @@ def get_lambda_grid(start, stop, points_number):
     step = (stop - start) / points_number
     return [start + point * step for point in range(points_number)]
 
-def draw_colorchecker(stimuli, patches_number, show=False):
-    carray = np.asarray([stimuli[i] for i in range(patches_number)])
+def draw_colorchecker(stimuli, show=False):
+    carray = np.asarray([stimuli[i] for i in range(24)])
     carray = carray.reshape((6, 4, 3))
     # carray = carray / carray.max()
     plt.imshow(carray)
