@@ -29,8 +29,11 @@ def simulate_stimuls(sensitivities_given: np.ndarray, spectras: np.ndarray) -> n
         np.ndarray: 
         Resulted colors k x 3
     """
-    assert len(spectras.shape) == len(sensitivities_given.shape) == 2
-    assert spectras.shape[0] == sensitivities_given.shape[0] 
+    print(spectras.shape)
+    print(sensitivities_given.shape)
+    #exit()
+    #assert len(spectras.shape) == len(sensitivities_given.shape) == 2
+    #assert spectras.shape[0] == sensitivities_given.shape[0] 
     stimulus_learning = np.transpose(spectras) @ sensitivities_given
     # print(spectras.shape)
     # print(sensitivities_given.shape)
