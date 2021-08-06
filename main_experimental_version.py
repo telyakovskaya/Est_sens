@@ -10,6 +10,7 @@ from plot import plot_sens, plot_spectra, draw_colorchecker
 from data import R_internet_matrix, reflectances_matrix, choose_learning_sample, get_sensitivities_gt, spectras_matrix
 from regularization import regularization, easy_regularization
 from measuring import DNGProcessingDemo, process_markup
+import cv2
 
 
 global illuminants_number, patches_number, choosed_patches_number, wavelengths
@@ -138,7 +139,7 @@ def plot_pictures(C, learning_sample, sensitivities_gt, simulated=False):
         # noise = np.random.normal(0,.0001, P_learning.shape)
         # P_learning += noise
     else:
-        P, variances = measure_stimuli()
+        P = cv2.imread('means.tiff',  cv2.IMREAD_UNCHANGED)
         # P, variances = choose_best_stimuls(P, variances)
         # P = P[:,:, 3]
         P_learning = np.array([P[patch] for patch in learning_sample])
@@ -173,6 +174,72 @@ def check_stimuls_accuracy(P, variances):
                     {variances[stimul, channel] / P[stimul, channel] * 100}')
             
 
+# def imread(path, out_dtype: np.floating = None, linearize_srgb=False) -> np.ndarray:
+#     """
+#     Return image data from file as np.ndarray.
+
+#     Parameters
+#     ----------
+#     path : Union[PathLike, str]
+#         Path to image file.
+#     out_dtype : np.floating, optional
+#         The np.dtype of the returned data.
+#         It is assumed to be np.floating.
+#         Returned image dtype will be changed to out_dtype using `uint2real` function.
+#         If out_dtype is None or image file is tiff file, data returns as is.
+#         By default None.
+#     linearize_srgb : bool, optional
+#         If out_dtype is not None and linearize_srgb is True, the linearization of the pixel value will be performed (see `srgb2lin_rgb` function).
+#         By default False.
+
+#     Returns
+#     -------
+#     np.ndarray
+#         Returned image data.
+
+#     Raises
+#     ------
+#     RuntimeError
+#         If image file does not exist.
+#     NotImplemented
+#         If image file format is one of the raw formats (see `raw_suffixes`).
+#     TypeError
+#         If image file is not tiff or raw file and image dtype is not unsignedinteger.
+#     TypeError
+#         If image file is not tiff or raw file and out_dtype is not None.
+#     """
+#     if not path.is_file():
+#         raise RuntimeError(f'File {path} does not exist!')
+    
+#     if path.suffix.lower() in raw_suffixes:
+#         raise NotImplemented(
+#             f'Reading raw formats {raw_suffixes} is not implemented!')
+#     elif path.suffix.lower() in tiff_suffixes:
+#         return tifffile.imread(str(path))
+#     else:
+#         img = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+#         if len(img.shape) >= 3:
+#             img = swap_rb(img)
+
+#         if out_dtype is None:
+#             return img
+
+#         if not np.issubdtype(img.dtype, np.unsignedinteger):
+#             raise TypeError(
+#                 f'Unsupported img.dtype={img.dtype}, dtype should be unsignedinteger!')
+
+#         # integer to real image
+#         if not np.issubdtype(out_dtype, np.floating):
+#             raise TypeError(
+#                 f'Unsupported out_dtype={out_dtype}, dtype should be floating!')
+
+#         img = uint2real(img, out_dtype=out_dtype)
+#         if linearize_srgb:
+#             # tranform from sRGB to linear sRGB
+#             img = srgb2lin_rgb(img)
+#         return img
+
+
 ##########################
 
 wavelengths = get_lambda_grid(400, 721, 20)
@@ -198,17 +265,20 @@ sensitivities_df = pd.read_excel('canon600d.xlsx', sheet_name='Worksheet')
 channels = list((sensitivities_df.drop(columns='wavelength')).columns)
 sensitivities_gt = get_sensitivities_gt(wavelengths, sensitivities_df)
 
-learning_sample, patches = choose_learning_sample(valid, achromatic_single, ratio=1.)
+learning_sample, patches = choose_learning_sample(patches_number, choosed_patches_number, illuminants_number, \
+    valid, achromatic_single, ratio=1.)
 # print(len(learning_sample))
 
 R = reflectances_matrix(R_df, patches_number, wavelengths)
 spectras_Alexander = spectras_matrix(learning_sample, wavelengths, illuminants_number, E_df, R)
 spectras_internet = spectras_matrix(learning_sample, wavelengths, illuminants_number, E_df, R_internet)
-P_measured, variances = measure_stimuli()
+# P_measured, variances = measure_stimuli()
 P_gt = spectras_Alexander @ sensitivities_gt
 
+P_measured = cv2.imread('means.tiff',  cv2.IMREAD_UNCHANGED)
+variances = cv2.imread('errors.tiff',  cv2.IMREAD_UNCHANGED)
 norm_val = np.max(P_measured[-1], axis=0)
-P_measured /= norm_val
+# P_measured /= norm_val
 variances /= norm_val
 
 
@@ -217,12 +287,11 @@ variances /= norm_val
 #     draw_colorchecker(P_measured[:,:, i], show=True)
 
 # P_measured, variances = choose_best_stimuls(P_measured, variances)
-# print(P_measured)
+
 draw_colorchecker(P_measured, patches_number, show=True)
 
-check_stimuls_accuracy(P_measured, variances)
+# check_stimuls_accuracy(P_measured, variances)
 
-# P_measured = P_measured[:,:, 3]
 P_learning = np.array([P_measured[patch] for patch in learning_sample])
 sensitivities = inv((spectras_Alexander.T @ spectras_Alexander).astype(float)) @ spectras_Alexander.T @ P_learning
 
