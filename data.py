@@ -1,4 +1,5 @@
 from typing import Dict, Tuple
+from PIL.Image import LIBIMAGEQUANT
 import pandas as pd
 import numpy as np
 from scipy import interpolate
@@ -6,19 +7,18 @@ import random
 
 ### The following functions load data from Excel files
 
-def choose_learning_sample(patches_number, choosed_patches_number, illuminants_number, valid, achromatic_single, ratio=0.8):
-    chromatic_learning_sample = []
-    achromatic = [i * patches_number + single for i in range(illuminants_number) for single in achromatic_single]
-    all_chromatic_potential = [patch for patch in valid if patch not in achromatic]
-    chromatic_learning_number = int(ratio * choosed_patches_number - len(achromatic_single))
+def choose_learning_sample(valid, ratio=0.8, patches_number=24, illuminants_number=1, choosed_patches_number=24):
+    all_potential = [patch for patch in valid]
+    if choosed_patches_number > len(valid):
+        learning_number = int(ratio * len(valid))
+    else:
+        learning_number = int(ratio * choosed_patches_number)
 
     for i in range(illuminants_number):
-        potential = [patch for patch in all_chromatic_potential if i * patches_number <= patch < i * patches_number + patches_number]
-        chromatic_learning_sample += sorted(random.sample(potential, k=chromatic_learning_number))
+        potential = [patch for patch in all_potential if i * patches_number <= patch < i * patches_number + patches_number]
+        learning_sample = sorted(random.sample(potential, k=learning_number))
 
-    patches = {patch: 1 if patch in chromatic_learning_sample or patch in achromatic else 0 for patch in valid}
-    learning_sample = [patch for patch, flag in patches.items() if flag == 1]
-    return learning_sample, patches
+    return learning_sample
 
 
 def get_sensitivities_gt(wavelengths, sensitivities_df):
@@ -32,7 +32,8 @@ def get_sensitivities_gt(wavelengths, sensitivities_df):
 
 
 
-def spectras_matrix(learning_sample, wavelengths, illuminants_number, E_df, R):
+def spectras_matrix(learning_sample, wavelengths, E_df, R_df, patches_number=24, illuminants_number=1):
+    R = reflectances_matrix(R_df, patches_number, wavelengths)
     C = np.zeros(shape=(len(learning_sample), len(wavelengths)))
     C_current_index = 0
 
@@ -41,7 +42,8 @@ def spectras_matrix(learning_sample, wavelengths, illuminants_number, E_df, R):
         y = E_df[str(1 + illuminant_index) + 'Norm']
         E_interpolated=interpolate.interp1d(x, y)
         E = np.diag(E_interpolated(wavelengths))
-        R_learning = [R[patch % 24] for patch in learning_sample if illuminant_index * 24 <= patch < illuminant_index * 24 + 24]
+        R_learning = [R[patch % patches_number] for patch in learning_sample if illuminant_index * patches_number \
+            <= patch < illuminant_index * patches_number + patches_number]
         C[C_current_index:C_current_index + len(R_learning)] = np.transpose(E @ np.transpose(R_learning))
         C_current_index += len(R_learning)
     

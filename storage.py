@@ -65,3 +65,19 @@ def real_write_to_excel(file_path, sensitivities, learning_sample):
         '=Sheet2!$A$3:$A$109', patches_values_coord, 'F26', learning_sample, colors_patches)
     
     workbook.close()
+
+
+def choose_learning_sample(patches_number, choosed_patches_number, illuminants_number, valid, achromatic_single, ratio=0.8):
+    learning_sample = {}
+    for channel in range(3):
+        chromatic_learning_sample = []
+        achromatic = [i * patches_number + single for i in range(illuminants_number) for single in achromatic_single]
+        all_chromatic_potential = [patch for patch in valid[channel] if patch not in achromatic]
+        chromatic_learning_number = int(ratio * len(valid[channel]) - len(achromatic_single))
+
+        for i in range(illuminants_number):
+            potential = [patch for patch in all_chromatic_potential if i * patches_number <= patch < i * patches_number + patches_number]
+            chromatic_learning_sample += sorted(random.sample(potential, k=chromatic_learning_number))
+
+        learning_sample[channel] = [patch for patch in valid if patch in chromatic_learning_sample or patch in achromatic]
+    return learning_sample 

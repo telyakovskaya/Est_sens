@@ -1,15 +1,21 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+import pandas as pd
+from data import get_sensitivities_gt
+from main_experimental_version import get_lambda_grid
 
 global channels, alphabet, colors_RGB, illuminants_number, patches_number, choosed_patches_number, wavelengths
-# wavelengths = list(range(400, 721, 10))
 
-def plot_sens(wavelengths, sens, sensitivities_gt, pattern='-', show=False):
+def plot_sens(wavelengths_points_numbers, sens, pattern='-', show=False):
+    sensitivities_df = pd.read_excel('canon600d.xlsx')
+    sensitivities_gt = get_sensitivities_gt(sensitivities_df['wavelength'], sensitivities_df)
     sens /= sens.max()
+
     for i,c in enumerate('rgb'):
-        plt.plot(wavelengths, sens[:, i], pattern, c=c)
-        plt.plot(wavelengths, sensitivities_gt[:,i], '--', c=c)
+        wavelengths = get_lambda_grid(400, 721, wavelengths_points_numbers[i])
+        plt.plot(wavelengths, sens[:,i], pattern, c=c)
+        plt.plot(sensitivities_df['wavelength'], sensitivities_gt[:,i], '--', c=c)
     if show: plt.show()
     
 def plot_spectra(wavelengths, spectras, show=False):
