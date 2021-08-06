@@ -493,6 +493,9 @@ valid = set(range(patches_number * illuminants_number)) - exceptions
 
 #########################
 
+
+
+#########################
 E_df = pd.read_excel('LampSpectra.xls', sheet_name='LampsSpectra', skiprows=2)
 R_df = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4, header=0)
 R_internet = R_internet_matrix(pd.read_excel('24_spectras.xlsx'))

@@ -16,7 +16,7 @@ from model import simulate_stimuls, change_wavelengths, radiance_matrix
 from plot import plot_sens, plot_spectra, plot_chart
 from model import change_wavelengths
 from data import load_illums, load_refl, load_sens
-from errors import check_errors
+#from errors import estimate_error_statistics
 
 # def choose_learning_sample(valid, achromatic_single, ratio=0.8):
 #     chromatic_learning_sample = []

@@ -1,32 +1,32 @@
 from pathlib import Path
 import numpy as np
 from img_io import imread, imsave
-from get_jpg import SimpleDNGProcessing
+# from get_jpg import SimpleDNGProcessing
 import matplotlib.pyplot as plt
 import json
 from tqdm  import tqdm
 from skimage import draw
 from main import draw_colorchecker
-from plot import visualization
+# from plot import visualization
 
 
-indir = Path(r'D:\Dev\crs\est_sens\imgs\PNG')
-outdir = Path(r'D:\Dev\crs\est_sens\imgs')
+indir = Path(r'C:\Users\Пользователь\Documents\imgs\PNG')
+outdir = Path(r'C:\Users\Пользователь\Documents\imgs')
 outdir.mkdir(parents=True, exist_ok=True)
 
-vis_markup_dir = Path(r'D:\Dev\crs\est_sens\imgs\vis_markup_dir')
+vis_markup_dir = Path(r'C:\Users\Пользователь\Documents\imgs\vis_markup_dir')
 vis_markup_dir.mkdir(parents=True, exist_ok=True)
 
-vis_cc_dir = Path(r'D:\Dev\crs\est_sens\imgs\vis_cc_dir')
+vis_cc_dir = Path(r'C:\Users\Пользователь\Documents\imgs\vis_cc_dir')
 vis_cc_dir.mkdir(parents=True, exist_ok=True)
 
-vis_noise_dir = Path(r'D:\Dev\crs\est_sens\imgs\vis_noise_dir')
+vis_noise_dir = Path(r'C:\Users\Пользователь\Documents\imgs\vis_noise_dir')
 vis_noise_dir.mkdir(parents=True, exist_ok=True)
 
-imgs_paths = list(indir.glob('*.png'))[:4]
+imgs_paths = list(indir.glob('*.png'))
 
 
-markup_path = Path(r'D:\Dev\crs\est_sens\imgs\markup\IMG_8348.png.json')
+markup_path = Path(r'C:\Users\Пользователь\Documents\imgs\markup\IMG_8348.png.json')
 
 with open(markup_path, 'r') as fh:
     markup = json.load(fh)
@@ -92,7 +92,7 @@ cc_all_dict = {}
 for path in tqdm(imgs_paths):
     img = imread(path, out_dtype=np.float32, linearize_srgb=False)   
     xy_dict = process_markup(markup, img)
-    vis_markup(xy_dict, img, vis_markup_dir / path.with_suffix('.m.jpg').name)
+    # vis_markup(xy_dict, img, vis_markup_dir / path.with_suffix('.m.jpg').name)
     
     with open(path.with_suffix('.json'), 'r') as fh:
         meta = json.load(fh)
@@ -130,12 +130,11 @@ for path in tqdm(imgs_paths):
 # print(cc_all_dict)
 
 
-vis_fin_dir = Path(r'D:\Dev\crs\est_sens\imgs\vis_fin_dir')
+vis_fin_dir = Path(r'C:\Users\Пользователь\Documents\imgs\vis_fin_dir')
 vis_fin_dir.mkdir(parents=True, exist_ok=True)
 
 for exp, cc_dict in cc_all_dict.items():
     #calc mean
-    print(np.asarray(cc_dict['1']).shape)
     cc_mean_array = np.asarray([np.mean(np.asarray(cc_dict[str(i)]), axis=(0,1)) for i in range(1, 25)])
     #calc normalize coeff
     norm_coeff = np.max(cc_mean_array[-1]) if norm_coeff is None else norm_coeff
@@ -153,27 +152,18 @@ for exp, cc_dict in cc_all_dict.items():
         for j in range(4):
             print(f'all={errors[i,j]}, one={errors_tmp[i,j]}')
             
-    # exit()
 
-    cc_mean_array /= norm_coeff
-    cc_std_array /= norm_coeff
-    
-    cc_mean_array /= norm_coeff
-    
-    cc_std_array /= norm_coeff
+    # cc_mean_array /= norm_coeff
+    # cc_std_array /= norm_coeff
 
-    imsave(vis_fin_dir / (str(exp) + '.mean.tiff'),  cc_mean_array, unchanged=True)
-    imsave(vis_fin_dir / (str(exp) + '.std.tiff'),  cc_std_array, unchanged=True)
+    # cc_mean_array /= norm_coeff
 
-    vis_noise(cc_mean_array, cc_std_array, vis_fin_dir / (str(exp) + '.n.jpg'))
+    # cc_std_array /= norm_coeff
 
-    vis_cc(cc_mean_array, vis_fin_dir / (str(exp) + '.cc.jpg'))
-    vis_cc(cc_mean_array/np.sum(cc_mean_array, axis=-1)[..., np.newaxis], vis_fin_dir / (str(exp) + '.ch.jpg'))
-    
-    
+    # imsave(vis_fin_dir / (str(exp) + '.mean.tiff'),  cc_mean_array, unchanged=True)
+    # imsave(vis_fin_dir / (str(exp) + '.std.tiff'),  cc_std_array, unchanged=True)
 
-    
+    # vis_noise(cc_mean_array, cc_std_array, vis_fin_dir / (str(exp) + '.n.jpg'))
 
-    
-    
-    
+    # vis_cc(cc_mean_array, vis_fin_dir / (str(exp) + '.cc.jpg'))
+    # vis_cc(cc_mean_array/np.sum(cc_mean_array, axis=-1)[..., np.newaxis], vis_fin_dir / (str(exp) + '.ch.jpg'))
