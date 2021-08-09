@@ -1,4 +1,8 @@
 
+
+### old versions of some functions and some functions that are not currently used
+
+
 def real_draw_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, values_coord, chart_coord, data_series, colors):
     chart = workbook.add_chart({'type': 'scatter', 'subtype': 'smooth'})
     for plot in data_series:
@@ -81,3 +85,65 @@ def choose_learning_sample(patches_number, choosed_patches_number, illuminants_n
 
         learning_sample[channel] = [patch for patch in valid if patch in chromatic_learning_sample or patch in achromatic]
     return learning_sample 
+
+
+def plot_pictures(C, learning_sample, sensitivities_df, P):
+    sensitivities = np.zeros(shape=(len(wavelengths), 3))
+    for channel in range(3):
+        P_learning = np.array([P[channel][patch] for patch in learning_sample[channel]])
+        sensitivities[:, channel] = inv((C[channel].T @ C[channel]).astype(float)) @ C[channel].T @ P_learning
+
+    plot_sens(wavelengths, sensitivities, sensitivities_df, show=True)
+    plot_spectra(C.T, show=True)
+
+
+def check_accuracy_angles(patches_number, stimulus_predicted, stimulus_genuine):
+    angles = []
+    norms = []
+
+    for i in range(patches_number):
+        predicted_stimulus = stimulus_predicted[i]
+        unit_predicted_stimulus = predicted_stimulus / np.linalg.norm(predicted_stimulus)
+        genuine_stimulus = stimulus_genuine[i]
+        print(predicted_stimulus, genuine_stimulus)
+        unit_genuine_stimulus = genuine_stimulus / np.linalg.norm(genuine_stimulus)
+        dot_product = np.dot(unit_predicted_stimulus, unit_genuine_stimulus)
+        angles.append(np.arccos(dot_product) * 180 / 3.1415)
+        norms.append(np.linalg.norm(predicted_stimulus - genuine_stimulus, 2))
+
+
+    mean_angle = sum(angles) / patches_number
+    variance_angles = statistics.variance(angles)
+    angles_fig = sns.histplot(angles).get_figure()
+
+    mean_norm = np.mean(norms)
+    variance_norms = statistics.variance(norms)
+    norms_fig = sns.histplot(norms).get_figure()
+
+    return mean_angle, variance_angles, angles_fig, mean_norm, variance_norms, norms_fig
+
+
+
+def check_stimuls_accuracy(P, variances):
+    # P /= P.max()
+    # for channel in range(3): 
+    #     mean_stimul = np.mean(P[:, channel])
+    #     variance_stimuls = statistics.variance(P[:, channel])
+    #     print(channel, mean_stimul, variance_stimuls)
+    #     sns.histplot(P[:, channel], kde=True).get_figure()
+    #     plt.show()
+
+    # P /= P.max()
+
+    # for channel in range(3):
+    #     for stimul in range(len(P)): 
+    #         for exposure in range(6):
+    #             print(f'p: {stimul}, ch: {channel}, exp: {exposure}, std(%): \
+    #                 {variances[stimul, channel, exposure] / P[stimul, channel, exposure] * 100}')
+    #         print()
+
+    for channel in range(3):
+        for stimul in range(len(P)): 
+            print(f'p: {stimul}, ch: {channel}, std(%): \
+                    {variances[stimul, channel] / P[stimul, channel] * 100}')
+

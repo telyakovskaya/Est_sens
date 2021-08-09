@@ -74,7 +74,7 @@ def regularization(channel, wavelengths, C, P_learning, reg_start = \
     optimal_parameter = find_optimal_parameter(channel)
     reg_sensitivities = inv((C.T @ C).astype(float) + np.identity(len(wavelengths)) * optimal_parameter) @ C.T @ P_learning
 
-    return reg_sensitivities
+    return reg_sensitivities.T
 
 
 def easy_regularization(wavelengths, C, P, optimal_parameter):

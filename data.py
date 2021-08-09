@@ -7,16 +7,24 @@ import random
 
 ### The following functions load data from Excel files
 
-def choose_learning_sample(valid, ratio=0.8, patches_number=24, illuminants_number=1, choosed_patches_number=24):
-    all_potential = [patch for patch in valid]
-    if choosed_patches_number > len(valid):
-        learning_number = int(ratio * len(valid))
-    else:
-        learning_number = int(ratio * choosed_patches_number)
 
-    for i in range(illuminants_number):
-        potential = [patch for patch in all_potential if i * patches_number <= patch < i * patches_number + patches_number]
-        learning_sample = sorted(random.sample(potential, k=learning_number))
+def get_lambda_grid(start, stop, points_number):
+    step = (stop - start) / points_number
+    return [start + point * step for point in range(points_number)]
+
+
+def choose_learning_sample(valid, ratio=0.8, patches_number=24, illuminants_number=1, choosed_patches_number=24):
+    learning_sample = {}
+    for channel in range(3):
+        all_potential = [patch for patch in valid[channel]]
+        if choosed_patches_number > len(valid[channel]):
+            learning_number = int(ratio * len(valid[channel]))
+        else:
+            learning_number = int(ratio * choosed_patches_number)
+
+        for i in range(illuminants_number):
+            potential = [patch for patch in all_potential if i * patches_number <= patch < i * patches_number + patches_number]
+            learning_sample[channel] = sorted(random.sample(potential, k=learning_number))
 
     return learning_sample
 

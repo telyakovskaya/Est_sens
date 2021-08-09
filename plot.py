@@ -3,25 +3,37 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 from data import get_sensitivities_gt
-from main_experimental_version import get_lambda_grid
+from data import get_lambda_grid
 
-global channels, alphabet, colors_RGB, illuminants_number, patches_number, choosed_patches_number, wavelengths
 
-def plot_sens(wavelengths_points_numbers, sens, pattern='-', show=False):
+def plot_sens(wavelengths_points_numbers: dict, sens: dict, pattern='-', show=False):
     sensitivities_df = pd.read_excel('canon600d.xlsx')
     sensitivities_gt = get_sensitivities_gt(sensitivities_df['wavelength'], sensitivities_df)
-    sens /= sens.max()
+    sens_max = max([el for arr in sens.values() for el in arr])
 
     for i,c in enumerate('rgb'):
+        sensitivity = sens[i]
+        sensitivity /= sens_max
         wavelengths = get_lambda_grid(400, 721, wavelengths_points_numbers[i])
-        plt.plot(wavelengths, sens[:,i], pattern, c=c)
+        plt.plot(wavelengths, sensitivity, pattern, c=c)
         plt.plot(sensitivities_df['wavelength'], sensitivities_gt[:,i], '--', c=c)
     if show: plt.show()
-    
-def plot_spectra(wavelengths, spectras, show=False):
-    for i in range(spectras.shape[-1]):
-        plt.plot(wavelengths, spectras[:, i], '--')
+
+
+def plot_spectra(wavelengths: list, spectras: dict, show=False):
+    for i in range(24):
+        plt.plot(wavelengths, spectras[i], '--')
     if show: plt.show()
+
+
+def draw_colorchecker(stimuli: dict, show=False):
+    carray = np.asarray([stimuli[i] for i in range(24)])
+    carray = carray.reshape((6, 4, 3))
+    carray = carray / carray.max()
+    plt.imshow(carray)
+    if show: plt.show()
+    return carray
+
 
 def visualization(nslices: int, tips: list):
     """
@@ -37,21 +49,3 @@ def visualization(nslices: int, tips: list):
     sns.set_theme()
     sns.heatmap(tips1, annot = True, vmin=value_min, vmax=value_max, center= (value_min+value_max)//2, fmt='.3g', cmap= 'coolwarm')
 
-
-def draw_colorchecker(stimuli, patches_number, show=False):
-    carray = np.asarray([stimuli[i] for i in range(patches_number)])
-    carray = carray.reshape((6, 4, 3))
-    carray = carray / carray.max()
-    plt.imshow(carray)
-    if show: plt.show()
-    return carray
-
-
-def draw_compared_colorcheckers(C, P, sensitivities, sensitivities_given, E_df, R, R_babelcolor):
-    draw_colorchecker(C @ sensitivities)
-    a_carray = draw_colorchecker(spectras_matrix(E_df, R) @ sensitivities_given)
-    b_carray = draw_colorchecker(spectras_matrix(E_df, R_babelcolor) @ sensitivities_given)
-    carray = draw_colorchecker(P)
-    tmp  = np.hstack([carray, np.zeros((6, 1, 3)), b_carray, np.zeros((6, 1, 3)), a_carray])
-    plt.imshow(tmp / tmp.max())
-    plt.show()
