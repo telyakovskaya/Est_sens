@@ -1,3 +1,4 @@
+from typing import Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -10,7 +11,21 @@ wavelengths = list(range(400, 721, 20))
      #   plt.plot(wavelengths, sens[:, i], pattern, c=c)
     #if show: plt.show()
 
-def plot_sens(wavelengths, sens, sensitivities_gt, pattern='-', show=False):
+def plot_sens(wavelengths:Tuple, sens:np.ndarray, sensitivities_gt:np.ndarray, pattern='-', show=False) -> None:
+    """[summary]
+
+    Args:
+        wavelengths (Tuple): 
+            [description]
+        sens (np.ndarray): 
+            [description]
+        sensitivities_gt (np.ndarray): 
+            [description]
+        pattern (str, optional): 
+            Defaults to '-'.
+        show (bool, optional): 
+            Defaults to False.
+    """    
     sens /= sens.max()
     for i,c in enumerate('rgb'):
         plt.plot(wavelengths, sens[:, i], pattern, c=c)
@@ -43,12 +58,14 @@ def plot_chart(workbook, worksheet, title, x_axis, y_axis, categories_coord, val
     chart.set_style(15)
     worksheet.insert_chart(chart_coord, chart, {'x_offset': 50, 'y_offset': 50, 'x_scale': 1.5, 'y_scale': 1.5})
 
-def error_heatmap(nslices: int, tips: list):
+def error_heatmap(nslices: int, tips: list) -> None:
     """
     This function builds heatmap to visualize accuracy usings learning and test samples
     Args:
-        nslices (int): number of bars in colorchecker
-        tips (list): list of sensitivities
+        nslices (int): 
+            number of bars in colorchecker
+        tips (list): 
+            list of sensitivities
     """    
     a = np.array(tips)
     tips1 = a.reshape((nslices, -1))

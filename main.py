@@ -1,4 +1,5 @@
 from ntpath import join
+from typing import Tuple
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -34,10 +35,10 @@ from errors import estimate_error_statistics
 
 
 
-def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channels):
-    """This function builds graphs in Excel
-
-    """    
+def write_to_excel(file_path: Path, sensitivities:np.ndarray, R_learning:np.ndarray, learning_sample:Tuple, channels:Tuple) -> None:
+    """
+    This function builds graphs in Excel
+    """         
     alphabet_st = list(string.ascii_uppercase)
     alphabet = alphabet_st + ['A' + letter for letter in alphabet_st] + ['B' + letter for letter in alphabet_st]
     colors_RGB = {'blue': '#0066CC', 'green': '#339966', 'red': '#993300'}
@@ -85,7 +86,7 @@ def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channe
     
     workbook.close()
 
-def get_lambda_grid(start, stop, points_number):
+def get_lambda_grid(start:int, stop: int, points_number: int) -> Tuple:
     """ This function creates list of wavelengths
 
     Args:
@@ -94,12 +95,25 @@ def get_lambda_grid(start, stop, points_number):
         points_number (int)
 
     Returns:
-        [list]: chosen wavelengths 
+        Tuple: 
+            chosen wavelengths 
     """    
     step = (stop - start) / points_number
     return [start + point * step for point in range(points_number)]
 
-def draw_colorchecker(stimuli, show=False):
+def draw_colorchecker(stimuli: np.ndarray, show=False) -> np.ndarray:
+    """
+    This function draws colorchecker ased on the values found
+    Args:
+        stimuli(np.ndarray): 
+            default 24 x 3 matrix
+        show (bool, optional):
+             Defaults to False.
+
+    Returns:
+        np.ndarray: 
+            6 x 4 x 3 matrix in the shape of colorchecker
+    """    
     carray = np.asarray([stimuli[i] for i in range(24)])
     carray = carray.reshape((6, 4, 3))
     # carray = carray / carray.max()
@@ -116,7 +130,23 @@ def draw_compared_colorcheckers(radiance, sensitivities, E_df, R, R_babelcolor, 
     plt.imshow(tmp / tmp.max())
     plt.show()  
 
-def easy_regularization(radiance, P, optimal_parameter, wavelengths):
+def easy_regularization(radiance:np.ndarray, P:np.ndarray, optimal_parameter:float, wavelengths:Tuple) -> np.ndarray:
+    """[summary]
+
+    Args:
+        radiance (np.ndarray): 
+            [description]
+        P (np.ndarray): 
+            [description]
+        optimal_parameter (float): 
+            [description]
+        wavelengths (Tuple): 
+            [description]
+
+    Returns:
+        np.ndarray: 
+            [description]
+    """    
     reg_sensitivities = np.zeros(shape=(len(wavelengths), 3))
     for channel in range(3):
         reg_sensitivities[:,channel] = inv((radiance.T @ radiance).astype(float) + np.identity(len(wavelengths)) \
