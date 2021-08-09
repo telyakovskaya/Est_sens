@@ -16,7 +16,7 @@ from model import simulate_stimuls, change_wavelengths, radiance_matrix
 from plot import plot_sens, plot_spectra, plot_chart
 from model import change_wavelengths
 from data import load_illums, load_refl, load_sens
-#from errors import estimate_error_statistics
+from errors import estimate_error_statistics
 
 # def choose_learning_sample(valid, achromatic_single, ratio=0.8):
 #     chromatic_learning_sample = []
@@ -33,7 +33,6 @@ from data import load_illums, load_refl, load_sens
 #     return learning_sample, patches
 
 
-###typing!!!description
 
 def write_to_excel(file_path, sensitivities, R_learning, learning_sample, channels):
     """This function builds graphs in Excel
@@ -394,6 +393,7 @@ if __name__=='__main__':
         R = np.asarray(list(R_dict.values()))
         R = change_wavelengths(R, R_wavelengths, wavelengths)
         R /= np.max(R, axis=0)
+               
 
         illuminants_number = len(E_dict)
         patches_number = len(R_dict)

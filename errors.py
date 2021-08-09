@@ -13,11 +13,9 @@ def calculate_errors(value, patches_number):
 def make_angle(value):
     return (np.arccos(value) * 180 / np.pi)
 
-def make_hitsplot(some_list):
-    list_fig = sns.histplot(some_list).get_figure()
-    return list_fig
+Error_def = Tuple[Dict[float, float, Tuple]]
 
-def estimate_error_statistics(patches_number: int, stimulus: Tuple, ground_thruth: tuple) -> Tuple[Dict[float, float, Tuple, any]]:
+def estimate_error_statistics(patches_number: int, stimulus: Tuple, ground_thruth: tuple) -> Error_def:
     """This fuction calculates errors between angles and vector lengths
 
     Args:
@@ -42,7 +40,7 @@ def estimate_error_statistics(patches_number: int, stimulus: Tuple, ground_thrut
     mean_angle, variance_angles = calculate_errors(angles, patches_number)
     mean_norm, variance_norms = calculate_errors(angles, patches_number)
     
-    angles_dict = {'mean_value': mean_angle, 'variance': variance_angles, 'list_of_values': angles, 'fig': make_hitsplot(angles)}
-    norms_dict = {'mean_value': mean_norm, 'variance': variance_norms, 'list_of_values': norms, 'fig': make_hitsplot(norms)}
+    angles_dict = {'mean_value': mean_angle, 'variance': variance_angles, 'list_of_values': angles}
+    norms_dict = {'mean_value': mean_norm, 'variance': variance_norms, 'list_of_values': norms}
 
     return angles_dict, norms_dict

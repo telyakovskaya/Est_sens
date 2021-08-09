@@ -3,14 +3,22 @@ import numpy as np
 import seaborn as sns
 
 global channels, alphabet, colors_RGB, illuminants_number, patches_number, choosed_patches_number, wavelengths
-wavelengths = list(range(400, 721, 10))
+wavelengths = list(range(400, 721, 20))
 
-def plot_sens(sens, pattern='-', show=False):
+#def plot_sens(sens, pattern='-', show=False):
+    #for i,c in enumerate('rgb'):
+     #   plt.plot(wavelengths, sens[:, i], pattern, c=c)
+    #if show: plt.show()
+
+def plot_sens(wavelengths, sens, sensitivities_gt, pattern='-', show=False):
+    sens /= sens.max()
     for i,c in enumerate('rgb'):
         plt.plot(wavelengths, sens[:, i], pattern, c=c)
+        plt.plot(wavelengths, sensitivities_gt[:,i], '--', c=c)
     if show: plt.show()
+     
     
-def plot_spectra(spectras, show=False):
+def plot_spectra(spectras, show=True):
     for i in range(spectras.shape[-1]):
         plt.plot(wavelengths, spectras[:, i], '--')
     if show: plt.show()
@@ -48,3 +56,11 @@ def error_heatmap(nslices: int, tips: list):
     value_min = min(tips1, key=lambda item: item[1])[1]
     sns.set_theme()
     sns.heatmap(tips1, annot = True, vmin=value_min, vmax=value_max, center= (value_min+value_max)//2, fmt='.3g', cmap= 'coolwarm')
+
+def draw_colorchecker(stimuli, patches_number, show=False):
+    carray = np.asarray([stimuli[i] for i in range(patches_number)])
+    carray = carray.reshape((6, 4, 3))
+    carray = carray / carray.max()
+    plt.imshow(carray)
+    if show: plt.show()
+    return carray
