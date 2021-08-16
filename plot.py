@@ -74,9 +74,11 @@ def error_heatmap(nslices: int, tips: list) -> None:
     sns.set_theme()
     sns.heatmap(tips1, annot = True, vmin=value_min, vmax=value_max, center= (value_min+value_max)//2, fmt='.3g', cmap= 'coolwarm')
 
-def draw_colorchecker(stimuli, patches_number, show=False):
-    carray = np.asarray([stimuli[i] for i in range(patches_number)])
-    carray = carray.reshape((6, 4, 3))
+def draw_colorchecker(stimuli, shape, show=False):
+    rows = shape[0]
+    columns = shape[1]
+    carray = np.asarray([stimuli[i] for i in range(rows * columns)])
+    carray = carray.reshape((rows, columns, 3))
     carray = carray / carray.max()
     plt.imshow(carray)
     if show: plt.show()

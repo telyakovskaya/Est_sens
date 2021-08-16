@@ -8,8 +8,9 @@ import random
 #to delete after
 
 def get_lambda_grid(start, stop, points_number):
-    step = (stop - start) / points_number
-    return [start + point * step for point in range(points_number)]
+    # step = (stop - start) / points_number
+    # return [start + point * step for point in range(points_number)]
+    return np.linspace(start, stop, num=points_number, endpoint=True)
 
 def R_internet_matrix(R_df, patches_number, wavelengths):
     R = np.zeros(shape=(patches_number, len(wavelengths)))
@@ -79,20 +80,22 @@ def reflectances_matrix(R_df, patches_number, wavelengths):
 def excl_read(excl_fname: str, **kwargs):
     return pd.read_excel(excl_fname, **kwargs)
 
-def load_spectral_data(excl_fname: str, wavelengths_name='wavelength')  -> Tuple[Dict[str, np.ndarray], np.ndarray]:
-    spectra_df = excl_read(excl_fname, sheet_name='Worksheet')
+def load_spectral_data(excl_fname: str, wavelengths_name='wavelength', sheet_name=None, skiprows=None, header=0)  -> Tuple[Dict[str, np.ndarray], np.ndarray]:
+    spectra_df = excl_read(excl_fname, sheet_name=sheet_name, skiprows=skiprows, header=header)
     wavelengths = spectra_df[wavelengths_name]
     spectras_dict = {key: np.asarray(list(data.values())) for key, data in spectra_df.drop(columns=wavelengths_name).to_dict().items()}
     return spectras_dict, wavelengths
 
-def load_illums(excl_fname: str = 'illuminances_std.xlsx', wavelengths_name='wavelength'):
-    return load_spectral_data(excl_fname, wavelengths_name)
+def load_illums(excl_fname: str = 'LampSpectra.xls', wavelengths_name='Lambda grid', sheet_name='LampsSpectra', skiprows=2):
+    return load_spectral_data(excl_fname, wavelengths_name, sheet_name=sheet_name, skiprows=skiprows)
 
-def load_refl(excl_fname: str = 'babelcolor.xlsx', wavelengths_name='wavelength'):
-    return load_spectral_data(excl_fname, wavelengths_name)
+def load_refl(excl_fname: str = 'CCC_Reflectance_1.xls', wavelengths_name='Lambda grid', sheet_name=1, skiprows=4, header=0):
+    return load_spectral_data(excl_fname, wavelengths_name, sheet_name=sheet_name, skiprows=skiprows, header=header)
 
-def load_sens(excl_fname: str = 'canon600d.xlsx', wavelengths_name='wavelength'):
-    return load_spectral_data(excl_fname, wavelengths_name)
+def load_sens(excl_fname: str = 'canon600d.xlsx', wavelengths_name='wavelength', sheet_name='Worksheet'):
+    return load_spectral_data(excl_fname, wavelengths_name, sheet_name=sheet_name)
+
+
 
 
 if __name__=='__main__':

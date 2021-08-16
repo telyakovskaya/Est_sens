@@ -386,8 +386,8 @@ if __name__=='__main__':
 
         for illuminant in illumination_types:
             illuminant_index = illumination_types.index(illuminant)  
-            img_path = join(r"C:\Users\adm\Documents\IITP\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
-            json_path = join(r'C:\Users\adm\Documents\IITP\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
+            img_path = join(r"C:\Users\Пользователь\Desktop\python\iipt\Calculation of sensitivities\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
+            json_path = join(r'C:\Users\Пользователь\Desktop\python\iipt\Calculation of sensitivities\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
 
             img = process(img_path)       
             color_per_region = process_markup(json_path, img)
