@@ -42,7 +42,7 @@ patches_number = 24                              # in colorchecker
 choosed_patches_number = patches_number                  # how many patches to use 
 radiances = {}
 sensitivities, reg_sensitivities = {}, {}
-wavelengths_number = 1000
+wavelengths_number = 20
 wavelengths_points_numbers = {0: wavelengths_number, 1: wavelengths_number, 2: wavelengths_number}
 
 #########################
@@ -52,6 +52,7 @@ wavelengths_points_numbers = {0: wavelengths_number, 1: wavelengths_number, 2: w
 #patches_colors_measured = cv2.imread('means.tiff',  cv2.IMREAD_UNCHANGED)
 #errors = cv2.imread('errors.tiff',  cv2.IMREAD_UNCHANGED)
 E_dict, E_wavelengths = load_illums()
+E_dict = {key: val for key, val in E_dict.items() if 'Avg' in key}
 R_dict, R_wavelengths = load_refl()
 R_dict = {key: val for key, val in R_dict.items() if 'Avg' in key}
 
@@ -62,7 +63,11 @@ R = np.asarray(list(R_dict.values()))
 
 sensitivities_given_dict, sens_wavelengths = load_sens()
 sensitivities_given = np.asarray([sensitivities_given_dict[key] for key in ['red', 'green', 'blue']])
-cc = imread(Path(r"C:\\Users\\Пользователь\\Documents\\imgs\\cc_all\\babelcolor1000.tiff"), out_dtype=np.float32, linearize_srgb=False)
+cc_noised = imread(Path(r"C:\\Users\\Пользователь\\Documents\\imgs\\no_noise_10000\\img.1000.tiff"), out_dtype=np.float32, linearize_srgb=False)
+#cc_noised = imread(Path(r"C:\\Users\\Пользователь\\Documents\\GitHub\\Est_sens\\means.tiff"), out_dtype=np.float32, linearize_srgb=False)
+cc = np.mean(cc_noised, axis=0)
+cc_std = np.std(cc_noised, axis=0)
+print(f'Median noise / signal ratio: {np.median(cc_std/cc*100)}')
 cc = np.reshape(cc, (patches_number, 3))
 
 patches_colors_measured = np.asarray([cc[j] for j in range(0, patches_number)])

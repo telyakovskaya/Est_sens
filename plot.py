@@ -1,3 +1,4 @@
+from math import sqrt
 from typing import Tuple
 import matplotlib.pyplot as plt
 import numpy as np
@@ -74,11 +75,28 @@ def error_heatmap(nslices: int, tips: list) -> None:
     sns.set_theme()
     sns.heatmap(tips1, annot = True, vmin=value_min, vmax=value_max, center= (value_min+value_max)//2, fmt='.3g', cmap= 'coolwarm')
 
-def draw_colorchecker(stimuli, shape, show=False):
+def draw_colorchecker(stimuli: np.ndarray, shape: Tuple[int, int], show=False):
+    assert len(shape) == 2
     rows = shape[0]
-    columns = shape[1]
-    carray = np.asarray([stimuli[i] for i in range(rows * columns)])
-    carray = carray.reshape((rows, columns, 3))
+    cols = shape[1]
+
+    if len(stimuli.shape) == 2:
+        carray = np.asarray(stimuli)
+        carray = carray.reshape((rows, cols, 3))
+    elif len(stimuli.shape) == 3:
+        pixels_num = stimuli.shape[0]
+        size = int(sqrt(pixels_num))
+        if not (pixels_num % size == 0):
+            raise ValueError(f'There is no integer size like size**2 == stimuli.shape[0]!')
+        tmp = np.asarray(stimuli)
+        tmp = tmp.reshape((tmp.shape[0], rows, cols, 3))
+        carray = np.zeros((rows*size, cols*size, 3))
+        for i in range(rows):
+            for j in range(cols):
+                for si in range(size):
+                    for sj in range(size):
+                        carray[i*size + si, j*size + sj] = tmp[si*size + sj, i, j, :]
+    
     carray = carray / carray.max()
     plt.imshow(carray)
     if show: plt.show()
