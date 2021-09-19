@@ -3,12 +3,11 @@ import pandas as pd
 import numpy as np
 from numpy.linalg import inv
 from plot2 import plot_sens, plot_spectra, draw_colorchecker
-from data2 import R_internet_matrix, reflectances_matrix, choose_learning_sample, get_sensitivities_gt, spectras_matrix
+from data2 import choose_learning_sample
 from regularization import regularization
 from measuring import measure_stimuli
 import cv2
 from data import get_lambda_grid, load_refl, load_illums, load_sens
-import pprint
 from img_io import imread
 from model import change_wavelengths, cals_radiances
 
@@ -39,7 +38,7 @@ def filter_stimuli(patches_colors_measured, errors, patches_number, illuminants_
 
 illuminants_number = 1
 patches_number = 24                              # in colorchecker
-choosed_patches_number = patches_number                  # how many patches to use 
+choosed_patches_number = patches_number          # how many patches to use 
 radiances = {}
 sensitivities, reg_sensitivities = {}, {}
 wavelengths_number = 20
@@ -47,8 +46,6 @@ wavelengths_points_numbers = {0: wavelengths_number, 1: wavelengths_number, 2: w
 
 #########################
 
-#E = pd.read_excel('LampSpectra.xls', sheet_name='LampsSpectra', skiprows=2)
-#R = pd.read_excel('CCC_Reflectance_1.xls', sheet_name=1, skiprows=4)
 #patches_colors_measured = cv2.imread('means.tiff',  cv2.IMREAD_UNCHANGED)
 #errors = cv2.imread('errors.tiff',  cv2.IMREAD_UNCHANGED)
 E_dict, E_wavelengths = load_illums()
@@ -63,7 +60,7 @@ R = np.asarray(list(R_dict.values()))
 
 sensitivities_given_dict, sens_wavelengths = load_sens()
 sensitivities_given = np.asarray([sensitivities_given_dict[key] for key in ['red', 'green', 'blue']])
-cc_noised = imread(Path(r"C:\\Users\\Пользователь\\Documents\\imgs\\no_noise_10000\\img.1000.tiff"), out_dtype=np.float32, linearize_srgb=False)
+cc_noised = imread(Path(r"img.1000.tiff"), out_dtype=np.float32, linearize_srgb=False)
 #cc_noised = imread(Path(r"C:\\Users\\Пользователь\\Documents\\GitHub\\Est_sens\\means.tiff"), out_dtype=np.float32, linearize_srgb=False)
 cc = np.mean(cc_noised, axis=0)
 cc_std = np.std(cc_noised, axis=0)

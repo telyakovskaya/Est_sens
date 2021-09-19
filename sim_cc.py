@@ -47,8 +47,6 @@ E_dict = {key: val for key, val in E_dict.items() if 'Avg' in key}
 R_dict, R_wavelengths = load_refl()
 R_dict = {key: val for key, val in R_dict.items() if 'Avg' in key}
 
-
-
 E = np.asarray(list(E_dict.values()))
 R = np.asarray(list(R_dict.values()))
     
@@ -66,7 +64,7 @@ alpha = 0.0005
 beta = 0.0
 number_of_repetitions = 10000
 
-outdir = Path(r'C:\Users\Пользователь\Documents\imgs') / f'no_noise_{number_of_repetitions}'
+outdir = Path(r'imgs') / f'no_noise_{number_of_repetitions}'
 outdir.mkdir(parents=True, exist_ok=True)
 
 for wavelengths_number in list_of_numbers:
