@@ -117,7 +117,7 @@ for wavelengths_number in list_of_numbers:
                  wavelengths_number)
     if wavelengths_number == last_number:
         cc1 = cc
-    outpath_error = Path(r'C:\Users\Пользователь\Documents\imgs\cc_all\babelcolor_error' + str(wavelengths_number) + '.jpg')
+    outpath_error = Path(r'imgs\cc_all\babelcolor_error' + str(wavelengths_number) + '.jpg')
     if wavelengths_number != last_number:
         angles = []
         for i in range(shape[0] * shape[1]):
