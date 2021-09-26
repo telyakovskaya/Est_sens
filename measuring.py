@@ -89,8 +89,8 @@ def measure_stimuli(patches_number=24, illuminants_number=1):
 
     for illuminant in illumination_types:
         illuminant_index = illumination_types.index(illuminant)  
-        img_path = join(r"C:\Users\Пользователь\Desktop\python\iipt\Calculation of sensitivities\dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
-        json_path = join(r'C:\Users\Пользователь\Desktop\python\iipt\Calculation of sensitivities\png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
+        img_path = join(r"dng", str(illuminant_index + 1) + '_' + illuminant + ".dng")
+        json_path = join(r'png_targed', str(illuminant_index + 1) + '_' + illuminant +'.jpg.json')
 
         img = process(img_path).astype(np.float32)
         # img_max = np.quantile(img, 0.99)

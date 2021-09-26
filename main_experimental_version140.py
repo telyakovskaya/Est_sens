@@ -4,7 +4,7 @@ import numpy as np
 from numpy.linalg import inv
 from plot2 import plot_sens, plot_spectra, draw_colorchecker
 from data2 import choose_learning_sample
-from regularization import regularization
+from regularization import regularization_Tikhonov, regularization_derivatives
 from measuring import measure_stimuli
 import cv2
 from data import get_lambda_grid, load_refl, load_illums, load_sens
@@ -91,7 +91,8 @@ for channel in range(3):
     print('norm difference before regularization: ', np.linalg.norm((colors_check - patches_channel), 2))
 
     # reg optimization
-    reg_sensitivities[channel] = regularization(channel, wavelengths, radiances[channel], patches_channel)
+    reg_sensitivities[channel] = regularization_Tikhonov(channel, wavelengths, radiances[channel], patches_channel)
+    # reg_sensitivities[channel] = regularization_derivatives(channel, wavelengths, radiances[channel], patches_channel)
     reg_sensitivities[channel][reg_sensitivities[channel] < 0] = 0
     reg_colors_check = radiances[channel] @ reg_sensitivities[channel]
     print('norm difference after regularization: ',np.linalg.norm((reg_colors_check - patches_channel), 2))

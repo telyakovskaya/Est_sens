@@ -5,7 +5,6 @@ from numpy.linalg import inv
 from plot2 import plot_sens, plot_spectra, draw_colorchecker
 from data2 import choose_learning_sample
 from regularization import regularization_Tikhonov, regularization_derivatives
-from measuring import measure_stimuli
 import cv2
 from data import get_lambda_grid, load_refl, load_illums, load_sens
 from img_io import imread
@@ -38,29 +37,23 @@ def filter_stimuli(patches_colors_measured, errors, patches_number, illuminants_
 
 illuminants_number = 1
 patches_number = 24                              # in colorchecker
-choosed_patches_number = patches_number                  # how many patches to use 
+choosed_patches_number = patches_number          # how many patches to use 
 radiances = {}
 sensitivities, reg_sensitivities = {}, {}
-wavelengths_number = 1000
+wavelengths_number = 20
 wavelengths_points_numbers = {0: wavelengths_number, 1: wavelengths_number, 2: wavelengths_number}
 
 #########################
 
-#patches_colors_measured = cv2.imread('means.tiff',  cv2.IMREAD_UNCHANGED)
-#errors = cv2.imread('errors.tiff',  cv2.IMREAD_UNCHANGED)
 E_dict, E_wavelengths = load_illums()
 E_dict = {key: val for key, val in E_dict.items() if 'Avg' in key}
 R_dict, R_wavelengths = load_refl()
 R_dict = {key: val for key, val in R_dict.items() if 'Avg' in key}
-
-
 E = np.asarray(list(E_dict.values()))
 R = np.asarray(list(R_dict.values()))
 
-
-sensitivities_given_dict, sens_wavelengths = load_sens()
-sensitivities_given = np.asarray([sensitivities_given_dict[key] for key in ['red', 'green', 'blue']])
-cc = imread(Path(r"babelcolor1000D50_24.tiff"), out_dtype=np.float32, linearize_srgb=False)
+cc_errors = cv2.imread('errors.tiff',  cv2.IMREAD_UNCHANGED)
+cc = imread(Path(r"means.tiff"), out_dtype=np.float32, linearize_srgb=False)
 cc = np.reshape(cc, (patches_number, 3))
 
 patches_colors_measured = np.asarray([cc[j] for j in range(0, patches_number)])
@@ -74,14 +67,12 @@ E = change_wavelengths(E, E_wavelengths, wavelengths)
 R = change_wavelengths(R, R_wavelengths, wavelengths)
 
 for channel in range(3):
-    # calculating radinaces
-    # wavelengths_points_numbers[channel] = len(learning_sample[channel])
     print('\nthe number of patches used: ', len(learning_sample[channel]))
     radiances[channel] = cals_radiances(R, E)
-    # choose radinaces only for first illumination   
+    # choose radinaces only for the first illumination   
     radiances[channel] = np.asarray([radiances[channel][j] for j in range(0, patches_number)])
     
-    # choose patches colors for only 
+    # choose patches colors used in the learning sample
     patches_channel = np.array([patches_colors_filtered[channel][patch] for patch in learning_sample[channel]])
     
     #lsq optimization
@@ -92,8 +83,8 @@ for channel in range(3):
     print('norm difference before regularization: ', np.linalg.norm((colors_check - patches_channel), 2))
 
     # reg optimization
-    # reg_sensitivities[channel] = regularization_Tikhonov(channel, wavelengths, radiances[channel], patches_channel)
-    reg_sensitivities[channel] = regularization_derivatives(channel, wavelengths, radiances[channel], patches_channel)
+    reg_sensitivities[channel] = regularization_Tikhonov(channel, wavelengths, radiances[channel], patches_channel)
+    # reg_sensitivities[channel] = regularization_derivatives(channel, wavelengths, radiances[channel], patches_channel)
     reg_sensitivities[channel][reg_sensitivities[channel] < 0] = 0
     reg_colors_check = radiances[channel] @ reg_sensitivities[channel]
     print('norm difference after regularization: ',np.linalg.norm((reg_colors_check - patches_channel), 2))
