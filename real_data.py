@@ -54,8 +54,8 @@ def get_radiances(optimal_wavelength_number, E_arr, E_wavelengths, R_arr, R_wave
 ##########################
 
 illuminants_number = 1
-patches_number = 24                              # in colorchecker
-choosed_patches_number = patches_number          # how many patches to use 
+# patches_number = 24                              # in colorchecker
+# choosed_patches_number = patches_number          # how many patches to use 
 radiances = {}
 sensitivities, reg_sensitivities = {}, {}
 # wavelengths_number = 5
@@ -80,15 +80,16 @@ R_arr = np.asarray(list(R_dict.values()))
 # errors = imread(Path(r"errors.tiff"), out_dtype=np.float32, linearize_srgb=False)
 # errors = np.reshape(errors, (patches_number, 3))
 # cc = imread(Path(r"means.tiff"), out_dtype=np.float32, linearize_srgb=False)
-cc = imread(Path(r"babelcolor1000D50_24.tiff"), out_dtype=np.float32, linearize_srgb=False)
-# cc = imread(Path(r"babelcolor1000D50_140.tiff"), out_dtype=np.float32, linearize_srgb=False)
+# cc = imread(Path(r"babelcolor1000D50_24.tiff"), out_dtype=np.float32, linearize_srgb=False)
+cc = imread(Path(r"babelcolor1000D50_140.tiff"), out_dtype=np.float32, linearize_srgb=False)
+patches_number = 140 
 
 cc = np.reshape(cc, (patches_number, 3))
 patches_colors_measured = np.asarray([cc[j] for j in range(0, patches_number)])
 errors = np.zeros(shape=(patches_number, 3))
 
 patches_colors_filtered, valid = filter_stimuli(patches_colors_measured, errors, patches_number)
-learning_sample = choose_learning_sample(valid, ratio=1., patches_number=patches_number, illuminants_number=1, choosed_patches_number=24)
+learning_sample = choose_learning_sample(valid, ratio=1., patches_number=patches_number, illuminants_number=1, choosed_patches_number=patches_number)
 
 for wavelengths_number in tqdm(range(2, 100)):
     wavelengths = get_lambda_grid(400, 721, wavelengths_number)
