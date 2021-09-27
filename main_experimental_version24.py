@@ -92,8 +92,8 @@ for channel in range(3):
     print('norm difference before regularization: ', np.linalg.norm((colors_check - patches_channel), 2))
 
     # reg optimization
-    # reg_sensitivities[channel] = regularization_Tikhonov(channel, wavelengths, radiances[channel], patches_channel)
-    reg_sensitivities[channel] = regularization_derivatives(channel, wavelengths, radiances[channel], patches_channel)
+    reg_sensitivities[channel] = regularization_Tikhonov(channel, wavelengths, radiances[channel], patches_channel)
+    # reg_sensitivities[channel] = regularization_derivatives(channel, wavelengths, radiances[channel], patches_channel)
     reg_sensitivities[channel][reg_sensitivities[channel] < 0] = 0
     reg_colors_check = radiances[channel] @ reg_sensitivities[channel]
     print('norm difference after regularization: ',np.linalg.norm((reg_colors_check - patches_channel), 2))
@@ -101,5 +101,5 @@ for channel in range(3):
 
 # draw_colorchecker(patches_colors_measured, show=True)
 
-plot_sens(wavelengths_points_numbers, sensitivities, show=True)
-plot_sens(wavelengths_points_numbers, reg_sensitivities, show=True)
+# plot_sens(wavelengths_points_numbers, sensitivities, show=True)
+# plot_sens(wavelengths_points_numbers, reg_sensitivities, show=True)
