@@ -14,7 +14,7 @@ def plot_sens(wavelengths_points_numbers: dict, sens: dict, pattern='-', show=Fa
     for i,c in enumerate('rgb'):
         sensitivity = sens[i]
         sensitivity /= sens_max
-        wavelengths = get_lambda_grid(400, 721, wavelengths_points_numbers[i])
+        wavelengths = get_lambda_grid(400, 720, wavelengths_points_numbers[i])
         plt.plot(wavelengths, sensitivity, pattern, c=c)
         plt.plot(sensitivities_df['wavelength'], sensitivities_gt[:,i], '--', c=c)
     if show: plt.show()

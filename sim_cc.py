@@ -1,16 +1,14 @@
 # from main_experimental_version import E_wavelengths, R_wavelengths
 import numpy as np
-import pandas as pd
+# import pandas as pd
 import statistics
-import seaborn.apionly as sns
-from math import sqrt
-from data import get_lambda_grid, load_sens, load_illums, load_refl
+from data2 import get_lambda_grid, load_sens, load_illums, load_refl
 from model import cals_radiances, change_wavelengths, cals_radiances, simulate_stimuls
 from plot import draw_colorchecker, error_heatmap
 import matplotlib.pyplot as plt
 from pathlib import Path
 from img_io import imsave
-from data2 import get_sensitivities_gt, reflectances_matrix
+# from data2 import get_sensitivities_gt, reflectances_matrix
 
 def simulate_noise(cc, alpha, beta, number_of_repetitions):
     res_list =[]
@@ -21,7 +19,6 @@ def simulate_noise(cc, alpha, beta, number_of_repetitions):
     res_array = np.array(res_list)
     return res_array
     
-
 
 def estimate_cc(sens, sens_wavelengths,
                 cc_refl, refl_wavelengths,
@@ -35,18 +32,17 @@ def estimate_cc(sens, sens_wavelengths,
     sens_int = change_wavelengths(sens, sens_wavelengths, wavelengths_int)
     refl_int = change_wavelengths(cc_refl, refl_wavelengths, wavelengths_int)
     illum_int = change_wavelengths(illum, illum_wavelengths, wavelengths_int)
-    radiances = cals_radiances(refl_int, illum_int)
+    radiances = cals_radiances(refl_int, illum_int)[:140]
     stimuli = simulate_stimuls(sens_int, radiances)
     return stimuli
 
-shape = (6, 4)
-number_of_patches = shape[0] * shape[1]
+# shape = (10, 14)
+# number_of_patches = shape[0] * shape[1]
 
 E_dict, E_wavelengths = load_illums()
 E_dict = {key: val for key, val in E_dict.items() if 'Avg' in key}
 R_dict, R_wavelengths = load_refl()
 R_dict = {key: val for key, val in R_dict.items() if 'Avg' in key}
-
 
 
 E = np.asarray(list(E_dict.values()))
@@ -66,8 +62,8 @@ alpha = 0.0005
 beta = 0.0
 number_of_repetitions = 10000
 
-outdir = Path(r'C:\Users\Пользователь\Documents\imgs') / f'no_noise_{number_of_repetitions}'
-outdir.mkdir(parents=True, exist_ok=True)
+# outdir = Path(r'C:\Users\Пользователь\Documents\imgs') / f'no_noise_{number_of_repetitions}'
+# outdir.mkdir(parents=True, exist_ok=True)
 
 for wavelengths_number in list_of_numbers:
     cc = estimate_cc(sensitivities_given, sens_wavelengths,
@@ -80,6 +76,15 @@ for wavelengths_number in list_of_numbers:
     #     plt.hist(cc[..., c].reshape(-1))
     # plt.show()
     # plt.close()
+    # outpath_tiff = outdir / '.'.join(['img', str(wavelengths_number), 'tiff'])
+    print(cc.shape)
+    img = draw_colorchecker(cc, shape, show=True)
+    plt.imshow(img)
+    # imsave(Path(r"babelcolor1000D50_24.tiff"), cc, unchanged=False, out_dtype=np.float32, gamma_correction=False)
+    imsave(Path(r"babelcolor1000D50_140.tiff"), cc, unchanged=False, out_dtype=np.float32, gamma_correction=True)
+
+
+    exit()
     
     cc = simulate_noise(cc, alpha, beta, number_of_repetitions)
     cc_mean = np.mean(cc, axis = 0)
